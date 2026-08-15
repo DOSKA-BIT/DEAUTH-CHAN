@@ -172,4 +172,80 @@ void Mascota::dibujarHappy() {
     
     // Corazones
     if (frameAnimacion % 2 == 0) {
-        display->fillCircle(x + 70
+        display->fillCircle(x + 70, y - 10 - (frameAnimacion % 16), 3, TFT_RED);
+        display->fillCircle(x + 74, y - 10 - (frameAnimacion % 16), 3, TFT_RED);
+        display->fillTriangle(x + 67, y - 7 - (frameAnimacion % 16), 
+                              x + 77, y - 7 - (frameAnimacion % 16), 
+                              x + 72, y - 2 - (frameAnimacion % 16), TFT_RED);
+    }
+}
+
+void Mascota::dibujarAttack() {
+    int x = 104;
+    int y = 120;
+    
+    dibujarCaraBase(TFT_RED);
+    
+    // Ojos enojados
+    display->drawLine(x + 8, y + 12, x + 24, y + 20, TFT_BLACK);
+    display->drawLine(x + 40, y + 20, x + 56, y + 12, TFT_BLACK);
+    display->fillCircle(x + 16, y + 22, 3, TFT_BLACK);
+    display->fillCircle(x + 48, y + 22, 3, TFT_BLACK);
+    
+    // Boca gritando
+    display->fillEllipse(x + 32, y + 46, 8, 10, TFT_BLACK);
+    display->fillEllipse(x + 32, y + 46, 5, 7, TFT_RED);
+    
+    // Rayos de ataque
+    display->drawLine(x + 64, y + 16, x + 90, y - 8, TFT_YELLOW);
+    display->drawLine(x + 64, y + 32, x + 85, y + 16, TFT_YELLOW);
+    display->drawLine(x + 64, y + 48, x + 80, y + 40, TFT_YELLOW);
+}
+
+void Mascota::dibujarSleep() {
+    int x = 104;
+    int y = 120;
+    
+    // Cabeza azul oscuro
+    display->fillRoundRect(x, y, 64, 64, 16, TFT_NAVY);
+    display->drawRoundRect(x, y, 64, 64, 16, TFT_BLUE);
+    
+    // Ojos cerrados
+    display->drawLine(x + 12, y + 22, x + 20, y + 22, TFT_WHITE);
+    display->drawLine(x + 44, y + 22, x + 52, y + 22, TFT_WHITE);
+    
+    // Boca pequeña
+    display->drawPixel(x + 32, y + 42, TFT_WHITE);
+    
+    // Zzz animado
+    int zOffset = (frameAnimacion % 16);
+    display->setTextColor(TFT_WHITE);
+    display->setTextSize(2);
+    display->setCursor(x + 70, y - 20 - zOffset);
+    display->print("Z");
+    if (zOffset > 5) {
+        display->setCursor(x + 80, y - 30 - zOffset + 5);
+        display->print("Z");
+    }
+    if (zOffset > 10) {
+        display->setCursor(x + 90, y - 40 - zOffset + 10);
+        display->print("Z");
+    }
+}
+
+void Mascota::incrementarHandshakes() {
+    handshakes++;
+    setEstado(ESTADO_HAPPY);
+}
+
+void Mascota::setRedesEncontradas(int cantidad) {
+    redesEncontradas = cantidad;
+}
+
+void Mascota::tocar(int tx, int ty) {
+    // Verificar si el toque está dentro de la mascota
+    if (tx >= 104 && tx <= 168 && ty >= 120 && ty <= 184) {
+        // Tocar la mascota la hace feliz
+        setEstado(ESTADO_HAPPY);
+    }
+}
