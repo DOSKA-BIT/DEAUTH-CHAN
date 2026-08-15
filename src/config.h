@@ -1,16 +1,40 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// Pines del CYD (ajusta si tu modelo es diferente)
-#define TFT_LED_PIN 21      // Backlight
-#define TOUCH_CS 14         // Táctil
-#define TOUCH_IRQ 13        // Opcional
-#define SD_CS 5             // SD Card
+#include <Arduino.h>
 
-// Config de la mascota
-#define ANIM_FRAME_MS 150   // Velocidad de animación
-#define SCAN_INTERVAL 3000  // Cada cuánto escanea
+// Pines CYD (ajustar según modelo específico)
+#define TFT_LED_PIN 21
+#define TOUCH_CS 14
+#define TOUCH_IRQ 13
+#define SD_CS 5
 
-// Estados
+// Pantalla
+#define SCREEN_WIDTH 240
+#define SCREEN_HEIGHT 320
+
+// Timing
+#define ANIM_FRAME_MS 200
+#define SCAN_INTERVAL 5000
+
+// Estados de la mascota
 enum EstadoMascota {
-    IDLE =
+    ESTADO_IDLE = 0,
+    ESTADO_SCANNING,
+    ESTADO_HAPPY,
+    ESTADO_ATTACK,
+    ESTADO_SLEEP,
+    ESTADO_COUNT
+};
+
+// Estructura para redes detectadas
+struct RedInfo {
+    char ssid[33];
+    uint8_t bssid[6];
+    int rssi;
+    int canal;
+    bool tieneClave;
+    bool handshakeCapturado;
+};
+
+#endif
