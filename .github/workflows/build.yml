@@ -1,0 +1,29 @@
+name: Build ESP32
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install PlatformIO
+      run: |
+        pip install platformio
+    
+    - name: Build project
+      run: |
+        pio run
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: firmware
+        path: .pio/build/esp32-cyd/firmware.bin
