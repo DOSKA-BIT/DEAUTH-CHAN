@@ -7,7 +7,7 @@
 class Mascota {
 public:
     Mascota();
-    ~Mascota();  // para liberar memoria del sprite
+    ~Mascota();
     void init(TFT_eSPI *tft);
     void update();
     void setEstado(EstadoMascota estado);
@@ -18,12 +18,13 @@ public:
     
     int getHandshakes() { return handshakes; }
     int getRedesEncontradas() { return redesEncontradas; }
+    EstadoMascota getEstado() { return estadoActual; }  // Añadir este getter
     
     void tocar(int tx, int ty);
     
 private:
     TFT_eSPI *display;
-    TFT_eSprite *sprite;   // <-- ahora es un puntero
+    TFT_eSprite *sprite;
     
     EstadoMascota estadoActual;
     EstadoMascota estadoAnterior;
