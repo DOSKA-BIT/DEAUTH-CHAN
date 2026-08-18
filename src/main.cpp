@@ -20,53 +20,41 @@ RedInfo redes[20];
 int numRedes = 0;
 unsigned long lastScanTime = 0;
 
-// Variables para el escaneo asíncrono
 bool scanning = false;
 unsigned long scanStartTime = 0;
 
-// Callback cuando se captura un handshake (se ejecuta desde el loop)
+// Variable para almacenar la red seleccionada para atacar
+int redSeleccionada = -1;
+bool atacando = false;
+unsigned long ataqueStartTime = 0;
+
 void onHandshakeCaptured(const uint8_t* frame, uint32_t len) {
-    // Aquí guardamos en PCAP y notificamos a la mascota
     uint32_t ts = millis();
     pcap.writePacket(frame, len, ts/1000, (ts%1000)*1000);
-    
     mascota.incrementarHandshakes();
-    
     Serial.printf("¡Handshake capturado! Tamaño: %d bytes\n", len);
 }
 
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    
     Serial.println("DEAUTH-CHAN v1.0 - ¡Hola mundo!");
     
-    // Encender retroiluminación de la pantalla
     pinMode(TFT_LED_PIN, OUTPUT);
     digitalWrite(TFT_LED_PIN, HIGH);
     
-    // Inicializar pantalla
     tft.init();
     tft.setRotation(0);
     tft.fillScreen(TFT_BLACK);
     
-    // Inicializar táctil
     touch.begin();
-    
-    // Inicializar mascota
     mascota.init(&tft);
     
-    // Inicializar SD y PCAP
     if (pcap.begin("deauth")) {
         Serial.println("PCAP iniciado correctamente");
-    } else {
-        Serial.println("Error con la SD, wardriving desactivado");
     }
     
-    // Inicializar GPS
     gps.begin();
-    
-    // Inicializar WiFi Hunter y asignar callback
     hunter.begin();
     hunter.setHandshakeCallback(onHandshakeCaptured);
     
@@ -74,40 +62,51 @@ void setup() {
 }
 
 void loop() {
-    // Actualizar GPS (no bloqueante)
     gps.update();
-    
-    // Procesar handshakes pendientes (desde la cola)
     hunter.processPendingHandshakes();
-    
-    // Actualizar y dibujar la mascota (con sprite)
     mascota.update();
     mascota.dibujar();
     
-    // Leer el táctil
+    // --- TÁCTIL ---
     if (touch.touched()) {
         TS_Point p = touch.getPoint();
         int x = map(p.x, 0, 4095, 0, 240);
         int y = map(p.y, 0, 4095, 0, 320);
-        mascota.tocar(x, y);
+        
+        // Si estamos en IDLE y tocamos la zona de redes (parte inferior)
+        if (mascota.getEstado() == ESTADO_IDLE && y > 200) {
+            int indice = (y - 200) / 20;
+            if (indice < numRedes) {
+                redSeleccionada = indice;
+                atacando = true;
+                ataqueStartTime = millis();
+                mascota.setEstado(ESTADO_ATTACK);
+                
+                // Ejecutar el ataque
+                hunter.deauth(redes[redSeleccionada], nullptr, 30);
+                
+                Serial.printf("Atacando red: %s\n", redes[redSeleccionada].ssid);
+                delay(100);
+                mascota.setEstado(ESTADO_IDLE);
+                atacando = false;
+            }
+        } else {
+            mascota.tocar(x, y);
+        }
     }
     
-    // --- Escaneo no bloqueante ---
+    // --- ESCANEO NO BLOQUEANTE ---
     if (!scanning && millis() - lastScanTime > SCAN_INTERVAL) {
-        // Iniciamos escaneo
         mascota.setEstado(ESTADO_SCANNING);
         hunter.startScan();
         scanning = true;
         scanStartTime = millis();
-        Serial.println("Iniciando escaneo...");
     }
     
     if (scanning && hunter.isScanDone()) {
-        // El escaneo ha terminado, recogemos resultados
         hunter.getScanResults(redes, 20, numRedes);
         mascota.setRedesEncontradas(numRedes);
         
-        // Guardar en CSV con datos GPS (wardriving)
         GPSData pos = gps.getData();
         File csv = SD.open("/wardriving.csv", FILE_APPEND);
         if (csv) {
@@ -127,13 +126,11 @@ void loop() {
             csv.close();
         }
         
-        // Volvemos a IDLE
         mascota.setEstado(ESTADO_IDLE);
         scanning = false;
         lastScanTime = millis();
-        Serial.printf("Escaneo completado: %d redes encontradas\n", numRedes);
+        Serial.printf("Escaneo completado: %d redes\n", numRedes);
     }
     
-    // Pequeña pausa para no saturar el CPU
     delay(10);
 }
