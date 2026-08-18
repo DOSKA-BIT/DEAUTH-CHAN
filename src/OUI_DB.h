@@ -1,0 +1,151 @@
+#ifndef OUI_DB_H
+#define OUI_DB_H
+
+#include <Arduino.h>
+#include <pgmspace.h>
+
+struct OUIRecord {
+    uint32_t oui;      // 3 bytes en 0xXXYYZZ
+    const char* nombre;
+};
+
+// Solo los fabricantes más comunes en dispositivos domésticos
+static const OUIRecord ouiDB[] PROGMEM = {
+    {0x000017, "Apple"},
+    {0x00037F, "Huawei"},
+    {0x00066E, "Motorola"},
+    {0x000ED7, "Xiaomi"},
+    {0x001637, "Huawei"},
+    {0x001811, "Google"},
+    {0x001DD0, "LG"},
+    {0x00216B, "Sony"},
+    {0x00276D, "Microsoft"},
+    {0x00291B, "Xiaomi"},
+    {0x0030BD, "Intel"},
+    {0x0037A6, "TCL"},
+    {0x00384C, "Realtek"},
+    {0x003A99, "Panasonic"},
+    {0x00405A, "Intel"},
+    {0x0046B7, "Amazon"},
+    {0x004F49, "ASUS"},
+    {0x0080C6, "Roku"},
+    {0x00904E, "Dell"},
+    {0x00E04C, "Realtek"},
+    {0x00E0E8, "HP"},
+    {0x00F02B, "Xiaomi"},
+    {0x00F0C8, "Apple"},
+    {0x0C8E29, "Sony"},
+    {0x106530, "Samsung"},
+    {0x14CF92, "Motorola"},
+    {0x1A9904, "Nintendo"},
+    {0x1CC2E2, "HTC"},
+    {0x20A68D, "Apple"},
+    {0x24E108, "OnePlus"},
+    {0x2CF1D6, "Amazon"},
+    {0x3056A6, "Amazon"},
+    {0x30AEA4, "Samsung"},
+    {0x30B5C2, "Amazon"},
+    {0x34E6AD, "Xiaomi"},
+    {0x34EE6A, "Apple"},
+    {0x38DAE3, "Nintendo"},
+    {0x3C18A0, "Nintendo"},
+    {0x3CBD95, "TP-Link"},
+    {0x3CE624, "Samsung"},
+    {0x3CF7E8, "Google"},
+    {0x40B4CD, "Huawei"},
+    {0x4487FC, "Samsung"},
+    {0x44F788, "Apple"},
+    {0x488725, "OnePlus"},
+    {0x4893E6, "Google"},
+    {0x4C21D0, "Sony"},
+    {0x4C349B, "Amazon"},
+    {0x4C9E80, "TCL"},
+    {0x4CDD65, "Samsung"},
+    {0x4CFA90, "Apple"},
+    {0x50FB38, "Microsoft"},
+    {0x50FC9F, "Google"},
+    {0x5448A0, "Samsung"},
+    {0x54A451, "Panasonic"},
+    {0x54EF17, "Google"},
+    {0x5C17F5, "Microsoft"},
+    {0x5C5EAB, "Google"},
+    {0x5C97AD, "Motorola"},
+    {0x5CF370, "Apple"},
+    {0x60A44C, "Google"},
+    {0x60F1E2, "Apple"},
+    {0x68860A, "ASUS"},
+    {0x688FB7, "Nintendo"},
+    {0x68A43A, "Samsung"},
+    {0x6C8C91, "TCL"},
+    {0x6CD05E, "Apple"},
+    {0x703F92, "Samsung"},
+    {0x705A0F, "Microsoft"},
+    {0x708BC8, "Google"},
+    {0x70F61C, "Amazon"},
+    {0x741C3C, "Samsung"},
+    {0x74956B, "Samsung"},
+    {0x74D200, "Google"},
+    {0x74F06D, "Apple"},
+    {0x782BCB, "Apple"},
+    {0x78A208, "Samsung"},
+    {0x7C2E0D, "Xiaomi"},
+    {0x7C5CF6, "OnePlus"},
+    {0x7CBDE9, "Apple"},
+    {0x80C5F2, "Apple"},
+    {0x80FA5B, "Apple"},
+    {0x84A1D1, "OnePlus"},
+    {0x84B8A1, "Amazon"},
+    {0x88CE52, "Samsung"},
+    {0x8C04F0, "Samsung"},
+    {0x8C210A, "Xiaomi"},
+    {0x8CA0A5, "Samsung"},
+    {0x90E6BA, "Xiaomi"},
+    {0xA4D18D, "Xiaomi"},
+    {0xA8A159, "Samsung"},
+    {0xACCF5C, "Xiaomi"},
+    {0xB0A720, "Roku"},
+    {0xB8A44E, "Samsung"},
+    {0xBCA86A, "Xiaomi"},
+    {0xC0E5A3, "TP-Link"},
+    {0xC49A02, "Xiaomi"},
+    {0xC8D591, "Samsung"},
+    {0xCC4B9C, "Xiaomi"},
+    {0xD0299D, "Samsung"},
+    {0xD40A3B, "Roku"},
+    {0xD47B6A, "Samsung"},
+    {0xD4ADBD, "ASUS"},
+    {0xD85D4C, "Xiaomi"},
+    {0xDC2C26, "Xiaomi"},
+    {0xE0D55E, "Samsung"},
+    {0xE4A0A6, "Samsung"},
+    {0xE894F6, "Samsung"},
+    {0xEC086B, "ASUS"},
+    {0xEC2E1A, "Samsung"},
+    {0xECB1D7, "Roku"},
+    {0xF02572, "Samsung"},
+    {0xF03C91, "Samsung"},
+    {0xF04661, "Samsung"},
+    {0xF0B338, "Samsung"},
+    {0xF0D1A9, "Samsung"},
+    {0xF4B87A, "Samsung"},
+    {0xF4F5D8, "Samsung"},
+    {0xF89880, "Samsung"},
+    {0xFCD9B5, "Samsung"},
+    {0xFCE8C0, "Samsung"},
+    {0xFCF529, "Samsung"},
+    {0xFCFFAA, "Xiaomi"}
+};
+
+// Búsqueda lineal (rápida con ~100 elementos)
+inline const char* buscarOUI(uint8_t* mac) {
+    uint32_t oui = (mac[0] << 16) | (mac[1] << 8) | mac[2];
+    for (int i = 0; i < sizeof(ouiDB)/sizeof(ouiDB[0]); i++) {
+        OUIRecord reg;
+        memcpy_P(&reg, &ouiDB[i], sizeof(OUIRecord));
+        if (reg.oui == oui) {
+            return reg.nombre;
+        }
+    }
+    return "Desconocido";
+}
+#endif
