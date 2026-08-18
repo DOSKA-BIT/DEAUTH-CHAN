@@ -7,6 +7,7 @@
 class Mascota {
 public:
     Mascota();
+    ~Mascota();  // para liberar memoria del sprite
     void init(TFT_eSPI *tft);
     void update();
     void setEstado(EstadoMascota estado);
@@ -18,12 +19,11 @@ public:
     int getHandshakes() { return handshakes; }
     int getRedesEncontradas() { return redesEncontradas; }
     
-    // Para tocar la mascota (interacción táctil)
     void tocar(int tx, int ty);
     
 private:
     TFT_eSPI *display;
-    TFT_eSprite sprite;    // <-- el sprite para dibujar sin parpadeos
+    TFT_eSprite *sprite;   // <-- ahora es un puntero
     
     EstadoMascota estadoActual;
     EstadoMascota estadoAnterior;
@@ -35,7 +35,6 @@ private:
     int handshakes;
     int redesEncontradas;
     
-    // Métodos de dibujo
     void dibujarSprite();
     void dibujarUI();
     void dibujarIdle();
@@ -44,7 +43,6 @@ private:
     void dibujarAttack();
     void dibujarSleep();
     
-    // Cara base para todos los estados
     void dibujarCaraBase(uint16_t color);
 };
 
