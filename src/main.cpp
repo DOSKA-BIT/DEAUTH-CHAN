@@ -31,13 +31,13 @@ ClienteInfo clientes[MAX_CLIENTES];
 int numClientes = 0;
 bool escaneandoClientes = false;
 unsigned long clientScanStart = 0;
-uint8_t bssidObjetivo[6];
+uint8_t bssidClienteScan[6];
 
-enum ModoUI {
+enum ModoPantalla {
     MODO_REDES,
     MODO_CLIENTES
 };
-ModoUI modoActual = MODO_REDES;
+ModoPantalla modoActual = MODO_REDES;
 
 void onHandshakeCaptured(const uint8_t* frame, uint32_t len) {
     uint32_t ts = millis();
@@ -79,28 +79,33 @@ void dibujarListaRedes() {
     
     int maxMostrar = (numRedes < 6) ? numRedes : 6;
     for (int i = 0; i < maxMostrar; i++) {
-        tft.setCursor(5, 205 + i * 20);
-        tft.printf("%d. %s (CH%d, %ddBm)", i+1, redes[i].ssid, redes[i].canal, redes[i].rssi);
+        int y = 200 + (i * 20);
+        tft.setCursor(5, y);
+        tft.printf("%02d: %s (CH%d)", i, redes[i].ssid, redes[i].canal);
+        tft.setCursor(180, y);
+        tft.printf("%ddBm", redes[i].rssi);
     }
+    tft.setCursor(5, 300);
+    tft.printf("Tap red to attack");
 }
 
 void dibujarListaClientes() {
-    tft.fillRect(0, 100, 240, 220, TFT_BLACK);
+    tft.fillRect(0, 200, 240, 120, TFT_BLACK);
     tft.setTextColor(TFT_WHITE);
     tft.setTextSize(1);
     
-    tft.setCursor(5, 105);
-    tft.printf("Clientes en red %d:", redSeleccionada + 1);
-    
-    int maxMostrar = (numClientes < 10) ? numClientes : 10;
+    int maxMostrar = (numClientes < 6) ? numClientes : 6;
     for (int i = 0; i < maxMostrar; i++) {
-        tft.setCursor(5, 125 + i * 20);
-        tft.printf("%d. %02X:%02X:%02X:%02X:%02X:%02X (%ddBm)", 
-            i+1,
+        int y = 200 + (i * 20);
+        tft.setCursor(5, y);
+        tft.printf("%02d: %02X:%02X:%02X:%02X:%02X:%02X", i,
             clientes[i].mac[0], clientes[i].mac[1], clientes[i].mac[2],
-            clientes[i].mac[3], clientes[i].mac[4], clientes[i].mac[5],
-            clientes[i].rssi);
+            clientes[i].mac[3], clientes[i].mac[4], clientes[i].mac[5]);
+        tft.setCursor(180, y);
+        tft.printf("%ddBm", clientes[i].rssi);
     }
+    tft.setCursor(5, 300);
+    tft.printf("Tap client to attack");
 }
 
 void loop() {
@@ -109,59 +114,56 @@ void loop() {
     mascota.update();
     mascota.dibujar();
     
-    if (modoActual == MODO_REDES) {
-        dibujarListaRedes();
-    } else if (modoActual == MODO_CLIENTES) {
-        dibujarListaClientes();
-    }
-    
     if (touch.touched()) {
         TS_Point p = touch.getPoint();
         int x = map(p.x, 0, 4095, 0, 240);
         int y = map(p.y, 0, 4095, 0, 320);
         
-        if (modoActual == MODO_REDES && y > 200) {
-            int indice = (y - 200) / 20;
-            if (indice < numRedes) {
-                redSeleccionada = indice;
-                memcpy(bssidObjetivo, redes[redSeleccionada].bssid, 6);
-                
-                // Escanear clientes de esta red
-                escaneandoClientes = true;
-                clientScanStart = millis();
-                modoActual = MODO_CLIENTES;
-                mascota.setEstado(ESTADO_SCANNING);
-                
-                // Iniciar escaneo de clientes
-                hunter.scanClients(bssidObjetivo, redes[redSeleccionada].canal, 
-                                   clientes, MAX_CLIENTES, numClientes);
-                
-                mascota.setEstado(ESTADO_IDLE);
-                escaneandoClientes = false;
-            }
-        } else if (modoActual == MODO_CLIENTES && y > 100) {
-            int indice = (y - 125) / 20;
-            if (indice < numClientes) {
-                // Atacar cliente específico
-                mascota.setEstado(ESTADO_ATTACK);
-                hunter.deauth(redes[redSeleccionada], clientes[indice].mac, 30);
-                delay(100);
-                mascota.setEstado(ESTADO_IDLE);
-            }
-        } else if (y < 100) {
-            // Tocar la mascota para volver a modo redes
-            if (modoActual == MODO_CLIENTES) {
-                modoActual = MODO_REDES;
-                mascota.setEstado(ESTADO_HAPPY);
+        if (mascota.getEstado() == ESTADO_IDLE) {
+            if (modoActual == MODO_REDES && y > 200) {
+                int indice = (y - 200) / 20;
+                if (indice < numRedes) {
+                    redSeleccionada = indice;
+                    mascota.setEstado(ESTADO_ATTACK);
+                    
+                    hunter.deauth(redes[redSeleccionada], nullptr, 30);
+                    
+                    delay(100);
+                    mascota.setEstado(ESTADO_IDLE);
+                }
+            } else if (modoActual == MODO_CLIENTES && y > 200) {
+                int indice = (y - 200) / 20;
+                if (indice < numClientes) {
+                    mascota.setEstado(ESTADO_ATTACK);
+                    
+                    hunter.deauth(redes[redSeleccionada], clientes[indice].mac, 30);
+                    
+                    delay(100);
+                    mascota.setEstado(ESTADO_IDLE);
+                }
+            } else if (y < 200 && y > 100) {
+                // Cambiar de modo o mostrar clientes
+                if (redSeleccionada >= 0 && modoActual == MODO_REDES) {
+                    modoActual = MODO_CLIENTES;
+                    hunter.startClientScan(redes[redSeleccionada].bssid, redes[redSeleccionada].canal);
+                } else if (modoActual == MODO_CLIENTES) {
+                    hunter.stopClientScan();
+                    modoActual = MODO_REDES;
+                }
             } else {
                 mascota.tocar(x, y);
             }
-        } else {
-            mascota.tocar(x, y);
         }
     }
     
-    if (!scanning && millis() - lastScanTime > SCAN_INTERVAL && modoActual == MODO_REDES) {
+    if (escaneandoClientes && hunter.isClientScanActive()) {
+        hunter.getClients(clientes, MAX_CLIENTES, numClientes);
+        dibujarListaClientes();
+    } else if (modoActual == MODO_REDES) {
+        dibujarListaRedes();
+    }
+    
+    if (!scanning && millis() - lastScanTime > SCAN_INTERVAL) {
         mascota.setEstado(ESTADO_SCANNING);
         hunter.startScan();
         scanning = true;
