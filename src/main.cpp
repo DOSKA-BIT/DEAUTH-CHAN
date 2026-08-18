@@ -20,34 +20,37 @@ RedInfo redes[20];
 int numRedes = 0;
 unsigned long lastScanTime = 0;
 
-// Callback cuando se detecta handshake real
+// Variables para el escaneo asíncrono
+bool scanning = false;
+unsigned long scanStartTime = 0;
+
+// Callback cuando se captura un handshake (se ejecuta desde el loop)
 void onHandshakeCaptured(const uint8_t* frame, uint32_t len) {
-    // Guardar en PCAP con timestamp real
+    // Aquí guardamos en PCAP y notificamos a la mascota
     uint32_t ts = millis();
     pcap.writePacket(frame, len, ts/1000, (ts%1000)*1000);
     
-    // Notificar a la mascota
     mascota.incrementarHandshakes();
     
-    Serial.printf("Handshake capturado! Tamaño: %d bytes\n", len);
+    Serial.printf("¡Handshake capturado! Tamaño: %d bytes\n", len);
 }
 
 void setup() {
     Serial.begin(115200);
     delay(1000);
     
-    Serial.println("DEAUTH-CHAN v1.0");
-    Serial.println("Iniciando...");
+    Serial.println("DEAUTH-CHAN v1.0 - ¡Hola mundo!");
     
-    // Inicializar pantalla
+    // Encender retroiluminación de la pantalla
     pinMode(TFT_LED_PIN, OUTPUT);
     digitalWrite(TFT_LED_PIN, HIGH);
     
+    // Inicializar pantalla
     tft.init();
     tft.setRotation(0);
     tft.fillScreen(TFT_BLACK);
     
-    // Inicializar touch
+    // Inicializar táctil
     touch.begin();
     
     // Inicializar mascota
@@ -56,47 +59,55 @@ void setup() {
     // Inicializar SD y PCAP
     if (pcap.begin("deauth")) {
         Serial.println("PCAP iniciado correctamente");
+    } else {
+        Serial.println("Error con la SD, wardriving desactivado");
     }
     
     // Inicializar GPS
     gps.begin();
     
-    // Inicializar WiFi Hunter con callback
+    // Inicializar WiFi Hunter y asignar callback
     hunter.begin();
     hunter.setHandshakeCallback(onHandshakeCaptured);
     
-    Serial.println("Setup completo");
+    Serial.println("Setup completado. ¡A divertirnos!");
 }
 
 void loop() {
-    // Actualizar GPS constantemente (no bloqueante)
+    // Actualizar GPS (no bloqueante)
     gps.update();
     
-    // Actualizar animación de la mascota
+    // Procesar handshakes pendientes (desde la cola)
+    hunter.processPendingHandshakes();
+    
+    // Actualizar y dibujar la mascota (con sprite)
     mascota.update();
     mascota.dibujar();
     
-    // Verificar touch
+    // Leer el táctil
     if (touch.touched()) {
         TS_Point p = touch.getPoint();
-        // Mapear coordenadas según rotación
         int x = map(p.x, 0, 4095, 0, 240);
         int y = map(p.y, 0, 4095, 0, 320);
-        
         mascota.tocar(x, y);
     }
     
-    // === ACA VA EL CÓDIGO DE ESCANEO ===
-    // Este reemplaza el scan simple que tenías antes
-    
-    if (millis() - lastScanTime > SCAN_INTERVAL) {
+    // --- Escaneo no bloqueante ---
+    if (!scanning && millis() - lastScanTime > SCAN_INTERVAL) {
+        // Iniciamos escaneo
         mascota.setEstado(ESTADO_SCANNING);
-        
-        // Escanear redes WiFi
-        hunter.scan(redes, 20, numRedes);
+        hunter.startScan();
+        scanning = true;
+        scanStartTime = millis();
+        Serial.println("Iniciando escaneo...");
+    }
+    
+    if (scanning && hunter.isScanDone()) {
+        // El escaneo ha terminado, recogemos resultados
+        hunter.getScanResults(redes, 20, numRedes);
         mascota.setRedesEncontradas(numRedes);
         
-        // Guardar en CSV para wardriving
+        // Guardar en CSV con datos GPS (wardriving)
         GPSData pos = gps.getData();
         File csv = SD.open("/wardriving.csv", FILE_APPEND);
         if (csv) {
@@ -116,12 +127,13 @@ void loop() {
             csv.close();
         }
         
-        // El handshake ahora se detecta por callback, no por random
-        // Solo volvemos a IDLE si no hay callback pendiente
+        // Volvemos a IDLE
         mascota.setEstado(ESTADO_IDLE);
-        
+        scanning = false;
         lastScanTime = millis();
+        Serial.printf("Escaneo completado: %d redes encontradas\n", numRedes);
     }
     
-    delay(50);
+    // Pequeña pausa para no saturar el CPU
+    delay(10);
 }
