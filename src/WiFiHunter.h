@@ -3,12 +3,13 @@
 
 #include <WiFi.h>
 #include "config.h"
-
-typedef void (*HandshakeCallback)(const uint8_t* frame, uint32_t len);
+#include "OUI_DB.h"
 
 #define MAX_PENDING_HS 5
 #define MAX_CLIENTES 20
-#define MAX_PAQUETES_BUFFER 100
+#define CLIENTE_TIMEOUT 10000
+
+typedef void (*HandshakeCallback)(const uint8_t* frame, uint32_t len);
 
 struct PendingHS {
     uint8_t frame[256];
@@ -20,15 +21,8 @@ struct ClienteInfo {
     int rssi;
     int canal;
     uint8_t bssid[6];
-    unsigned long lastSeen;
-};
-
-struct PaqueteRaw {
-    uint8_t data[128];
-    uint16_t len;
-    int rssi;
-    int canal;
-    unsigned long timestamp;
+    unsigned long ultimaVez;
+    char fabricante[16];
 };
 
 class WiFiHunter {
@@ -38,23 +32,17 @@ public:
     bool isScanDone();
     void getScanResults(RedInfo* resultados, int maxRedes, int& encontradas);
     
-    void startClientScan(const uint8_t* bssid, int canal);
-    void stopClientScan();
-    bool isClientScanActive();
-    void getClients(ClienteInfo* clientes, int maxClientes, int& encontrados);
-    
+    void scanClients(const uint8_t* bssid, int canal);
     void deauth(const RedInfo& red, const uint8_t* clienteMac = nullptr, int numPaquetes = 20);
-    void deauthAll(const RedInfo& red, int numPaquetes = 10);
-    
     void setHandshakeCallback(HandshakeCallback cb);
     void processPendingHandshakes();
+    
+    ClienteInfo* getClientes(int& count);
     
 private:
     static void promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type);
     void sendDeauthFrame(const uint8_t* bssid, const uint8_t* clienteMac, int channel);
-    void procesarPaquete(const uint8_t* frame, uint16_t len, int rssi, int canal);
-    bool esClienteValido(const uint8_t* mac, const uint8_t* bssid);
-    void actualizarCliente(const uint8_t* mac, const uint8_t* bssid, int rssi, int canal);
+    void actualizarCliente(uint8_t* mac, int rssi, uint8_t* bssid, int canal);
     
     PendingHS pending[MAX_PENDING_HS];
     volatile int head = 0;
@@ -63,8 +51,8 @@ private:
     ClienteInfo clientes[MAX_CLIENTES];
     int numClientes = 0;
     uint8_t bssidObjetivo[6];
+    int canalObjetivo = 0;
     bool escaneandoClientes = false;
-    unsigned long lastClientUpdate = 0;
     
     static HandshakeCallback handshakeCB;
     static WiFiHunter* instance;
