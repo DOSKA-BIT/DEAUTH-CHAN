@@ -8,6 +8,7 @@ typedef void (*HandshakeCallback)(const uint8_t* frame, uint32_t len);
 
 #define MAX_PENDING_HS 5
 #define MAX_CLIENTES 20
+#define BUFFER_PAQUETES 100
 
 struct PendingHS {
     uint8_t frame[256];
@@ -19,6 +20,16 @@ struct ClienteInfo {
     int rssi;
     int canal;
     uint8_t bssid[6];
+    unsigned long lastSeen;
+};
+
+struct PaqueteCapturado {
+    uint8_t macOrigen[6];
+    uint8_t macDestino[6];
+    uint8_t bssid[6];
+    int rssi;
+    int canal;
+    unsigned long timestamp;
 };
 
 class WiFiHunter {
@@ -33,6 +44,7 @@ public:
     
     void setHandshakeCallback(HandshakeCallback cb);
     void processPendingHandshakes();
+    void processPackets();  // Procesa paquetes capturados para extraer clientes
     
 private:
     static void promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type);
@@ -41,6 +53,10 @@ private:
     PendingHS pending[MAX_PENDING_HS];
     volatile int head = 0;
     volatile int tail = 0;
+    
+    PaqueteCapturado packetBuffer[BUFFER_PAQUETES];
+    volatile int packetHead = 0;
+    volatile int packetTail = 0;
     
     static HandshakeCallback handshakeCB;
     static WiFiHunter* instance;
