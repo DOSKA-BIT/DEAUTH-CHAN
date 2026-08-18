@@ -18,7 +18,7 @@ public:
     
     int getHandshakes() { return handshakes; }
     int getRedesEncontradas() { return redesEncontradas; }
-    EstadoMascota getEstado() { return estadoActual; }  // Añadir este getter
+    EstadoMascota getEstado() { return estadoActual; }  // <-- AÑADIR ESTO
     
     void tocar(int tx, int ty);
     
