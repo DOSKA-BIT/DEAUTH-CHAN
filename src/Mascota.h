@@ -18,8 +18,13 @@ public:
     int getHandshakes() { return handshakes; }
     int getRedesEncontradas() { return redesEncontradas; }
     
+    // Para tocar la mascota (interacción táctil)
+    void tocar(int tx, int ty);
+    
 private:
     TFT_eSPI *display;
+    TFT_eSprite sprite;    // <-- el sprite para dibujar sin parpadeos
+    
     EstadoMascota estadoActual;
     EstadoMascota estadoAnterior;
     
@@ -30,6 +35,7 @@ private:
     int handshakes;
     int redesEncontradas;
     
+    // Métodos de dibujo
     void dibujarSprite();
     void dibujarUI();
     void dibujarIdle();
@@ -38,7 +44,7 @@ private:
     void dibujarAttack();
     void dibujarSleep();
     
-    // Sprites simplificados (32x32)
+    // Cara base para todos los estados
     void dibujarCaraBase(uint16_t color);
 };
 
