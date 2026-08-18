@@ -1,4 +1,5 @@
 #include "WiFiHunter.h"
+#include <esp_wifi.h>   // Necesario para esp_wifi_set_promiscuous y esp_wifi_80211_tx
 
 // Inicialización de estáticos
 WiFiHunter* WiFiHunter::instance = nullptr;
@@ -150,7 +151,7 @@ void WiFiHunter::deauth(const RedInfo& red) {
     
     // Dirección origen: nuestra MAC
     uint8_t nuestraMac[6];
-    esp_wifi_get_mac(WIFI_IF_STA, nuestraMac);
+    WiFi.macAddress(nuestraMac);   // Usamos WiFi.macAddress() que es más portable
     memcpy(&deauthFrame[10], nuestraMac, 6);
     
     // BSSID: el de la red objetivo
