@@ -26,48 +26,13 @@ int redSeleccionada = -1;
 ClienteInfo* clientes = nullptr;
 int numClientes = 0;
 bool escaneandoClientes = false;
-
-// Modos de visualización
-enum ModoPantalla {
-    MODO_REDES,
-    MODO_CLIENTES
-};
-ModoPantalla modoActual = MODO_REDES;
+unsigned long clientScanStart = 0;
 
 void onHandshakeCaptured(const uint8_t* frame, uint32_t len) {
     uint32_t ts = millis();
     pcap.writePacket(frame, len, ts/1000, (ts%1000)*1000);
     mascota.incrementarHandshakes();
     Serial.printf("Handshake capturado! %d bytes\n", len);
-}
-
-void mostrarRedes() {
-    tft.fillRect(0, 200, 240, 120, TFT_BLACK);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextSize(1);
-    int y = 200;
-    for (int i = 0; i < numRedes && i < 6; i++) {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%s (%d)", redes[i].ssid, redes[i].rssi);
-        tft.setCursor(5, y);
-        tft.print(buf);
-        y += 20;
-    }
-}
-
-void mostrarClientes() {
-    tft.fillRect(0, 200, 240, 120, TFT_BLACK);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextSize(1);
-    int y = 200;
-    int maxMostrar = (numClientes < 6) ? numClientes : 6;
-    for (int i = 0; i < maxMostrar; i++) {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%s (%d dBm)", clientes[i].fabricante, clientes[i].rssi);
-        tft.setCursor(5, y);
-        tft.print(buf);
-        y += 20;
-    }
 }
 
 void setup() {
@@ -102,52 +67,34 @@ void loop() {
     mascota.update();
     mascota.dibujar();
     
-    // Dibujar lista según modo
-    if (modoActual == MODO_REDES) {
-        mostrarRedes();
-    } else if (modoActual == MODO_CLIENTES) {
-        mostrarClientes();
-    }
-    
     if (touch.touched()) {
         TS_Point p = touch.getPoint();
         int x = map(p.x, 0, 4095, 0, 240);
         int y = map(p.y, 0, 4095, 0, 320);
         
-        if (mascota.getEstado() == ESTADO_IDLE) {
-            if (modoActual == MODO_REDES && y > 200) {
-                int indice = (y - 200) / 20;
-                if (indice < numRedes) {
-                    redSeleccionada = indice;
-                    // Cambiar a modo clientes y escanear
-                    modoActual = MODO_CLIENTES;
-                    mascota.setEstado(ESTADO_SCANNING);
-                    hunter.scanClients(redes[redSeleccionada].bssid, redes[redSeleccionada].canal);
-                    clientes = hunter.getClientes(numClientes);
-                    mascota.setEstado(ESTADO_IDLE);
-                }
-            } else if (modoActual == MODO_CLIENTES && y > 200) {
-                int indice = (y - 200) / 20;
-                if (indice < numClientes) {
-                    // Atacar a ese cliente específico
-                    mascota.setEstado(ESTADO_ATTACK);
-                    hunter.deauth(redes[redSeleccionada], clientes[indice].mac, 30);
-                    delay(100);
-                    mascota.setEstado(ESTADO_IDLE);
-                }
-            } else if (y < 200) {
-                // Tocar la mascota o volver al modo redes
-                if (modoActual == MODO_CLIENTES) {
-                    modoActual = MODO_REDES;
-                } else {
-                    mascota.tocar(x, y);
-                }
+        if (mascota.getEstado() == ESTADO_IDLE && y > 200) {
+            int indice = (y - 200) / 20;
+            if (indice < numRedes) {
+                redSeleccionada = indice;
+                mascota.setEstado(ESTADO_ATTACK);
+                
+                hunter.deauth(redes[redSeleccionada], nullptr, 30);
+                
+                // Opcional: escanear clientes
+                // hunter.scanClients(redes[redSeleccionada].bssid, redes[redSeleccionada].canal);
+                // clientes = hunter.getClientes(numClientes);
+                
+                delay(100);
+                mascota.setEstado(ESTADO_IDLE);
             }
+        } else if (mascota.getEstado() == ESTADO_IDLE && y > 100 && y < 200) {
+            // Zona para mostrar clientes (pendiente)
+        } else {
+            mascota.tocar(x, y);
         }
     }
     
-    // Escaneo automático de redes
-    if (!scanning && millis() - lastScanTime > SCAN_INTERVAL && modoActual == MODO_REDES) {
+    if (!scanning && millis() - lastScanTime > SCAN_INTERVAL) {
         mascota.setEstado(ESTADO_SCANNING);
         hunter.startScan();
         scanning = true;
