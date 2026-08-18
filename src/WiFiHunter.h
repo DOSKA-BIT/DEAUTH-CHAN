@@ -4,38 +4,48 @@
 #include <WiFi.h>
 #include "config.h"
 
-// Callback que se ejecuta cuando capturamos un handshake
 typedef void (*HandshakeCallback)(const uint8_t* frame, uint32_t len);
-
-// Tamaño de la cola de handshakes pendientes
 #define MAX_PENDING_HS 5
 
-// Estructura para guardar un handshake en la cola
 struct PendingHS {
     uint8_t frame[256];
     uint32_t len;
 };
 
+// Estructura para almacenar información de un cliente
+struct ClienteInfo {
+    uint8_t mac[6];
+    int rssi;
+};
+
 class WiFiHunter {
 public:
     void begin();
-    void startScan();   // inicia escaneo asíncrono
-    bool isScanDone();  // true si el escaneo terminó
+    void startScan();
+    bool isScanDone();
     void getScanResults(RedInfo* resultados, int maxRedes, int& encontradas);
-    void deauth(const RedInfo& red);
+    
+    // NUEVO: escanea clientes de una red específica
+    void scanClients(const uint8_t* bssid, ClienteInfo* clientes, int maxClientes, int& encontrados);
+    
+    // NUEVO: deauth mejorado con ráfaga y canal automático
+    void deauth(const RedInfo& red, const uint8_t* clienteMac = nullptr, int numPaquetes = 20);
+    
     void setHandshakeCallback(HandshakeCallback cb);
-    void processPendingHandshakes();  // procesa los handshakes en cola (llamar desde loop)
+    void processPendingHandshakes();
     
 private:
     static void promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type);
     
-    // Cola circular para handshakes
     PendingHS pending[MAX_PENDING_HS];
     volatile int head = 0;
     volatile int tail = 0;
     
-    static HandshakeCallback handshakeCB;  // callback global
-    static WiFiHunter* instance;           // para acceder desde la callback estática
+    static HandshakeCallback handshakeCB;
+    static WiFiHunter* instance;
+    
+    // NUEVO: método interno para enviar un frame de deauth
+    void sendDeauthFrame(const uint8_t* bssid, const uint8_t* clienteMac, int channel);
 };
 
 #endif
