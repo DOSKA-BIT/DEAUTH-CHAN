@@ -1,4 +1,7 @@
 #include "WiFiHunter.h"
+#include <esp_wifi.h>      
+#include <esp_netif.h>     
+#include <esp_mac.h>       
 
 WiFiHunter* WiFiHunter::instance = nullptr;
 HandshakeCallback WiFiHunter::handshakeCB = nullptr;
