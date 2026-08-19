@@ -39,6 +39,16 @@ public:
     
     ClienteInfo* getClientes(int& count);
     
+    // Mejora 7: Sigilo
+    void setSilentMode(bool enable);
+    void randomizeMAC();
+    void setLED(bool state);
+    
+    // Mejora 1: Ataques activos
+    void beaconFlood(const char* ssid, int numBeacons = 50);
+    void sendProbeRequest(const char* ssid);
+    void deauthAllClients(const RedInfo& red, int numPaquetes = 30);
+    
 private:
     static void promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type);
     void sendDeauthFrame(const uint8_t* bssid, const uint8_t* clienteMac, int channel);
@@ -56,6 +66,8 @@ private:
     
     static HandshakeCallback handshakeCB;
     static WiFiHunter* instance;
+    
+    bool silentMode = false;
 };
 
 #endif
