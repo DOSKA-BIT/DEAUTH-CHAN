@@ -66,7 +66,8 @@ private:
     
     static HandshakeCallback handshakeCB;
     static WiFiHunter* instance;
-    
+
+    bool isSilentMode() { return silentMode; }
     bool silentMode = false;
 };
 
