@@ -3,6 +3,7 @@
 
 #include <SD.h>
 #include <FS.h>
+#include <WiFi.h>          
 #include "config.h"
 #include "GPSModule.h"
 
