@@ -48,7 +48,6 @@ private:
     void dibujarAttack();
     void dibujarSleep();
     
-    // Nuevas funciones para el cuerpo anime
     void dibujarCuerpo();
     void dibujarCabello();
     void dibujarOjos(int estado);
