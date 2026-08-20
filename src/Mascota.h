@@ -18,7 +18,7 @@ public:
     
     int getHandshakes() { return handshakes; }
     int getRedesEncontradas() { return redesEncontradas; }
-    EstadoMascota getEstado() { return estadoActual; }  // <-- AÑADIR ESTO
+    EstadoMascota getEstado() { return estadoActual; }
     
     void tocar(int tx, int ty);
     
@@ -35,6 +35,11 @@ private:
     
     int handshakes;
     int redesEncontradas;
+    
+    // Evolución
+    int getNivel();
+    uint16_t getColorNivel();
+    void dibujarAccesorio(int nivel);
     
     void dibujarSprite();
     void dibujarUI();
