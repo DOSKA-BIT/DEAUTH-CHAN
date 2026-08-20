@@ -39,12 +39,13 @@ public:
     
     ClienteInfo* getClientes(int& count);
     
-    // Mejora 7: Sigilo
+    // Sigilo
     void setSilentMode(bool enable);
     void randomizeMAC();
     void setLED(bool state);
+    bool isSilentMode() { return silentMode; }
     
-    // Mejora 1: Ataques activos
+    // Ataques activos
     void beaconFlood(const char* ssid, int numBeacons = 50);
     void sendProbeRequest(const char* ssid);
     void deauthAllClients(const RedInfo& red, int numPaquetes = 30);
@@ -66,8 +67,7 @@ private:
     
     static HandshakeCallback handshakeCB;
     static WiFiHunter* instance;
-
-    bool isSilentMode() { return silentMode; }
+    
     bool silentMode = false;
 };
 
