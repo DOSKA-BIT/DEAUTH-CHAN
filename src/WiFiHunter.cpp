@@ -1,7 +1,7 @@
 #include "WiFiHunter.h"
-#include <esp_wifi.h>      
-#include <esp_netif.h>     
-#include <esp_mac.h>       
+#include <esp_wifi.h>
+#include <esp_netif.h>
+#include <esp_mac.h>
 
 WiFiHunter* WiFiHunter::instance = nullptr;
 HandshakeCallback WiFiHunter::handshakeCB = nullptr;
@@ -128,7 +128,7 @@ void WiFiHunter::sendDeauthFrame(const uint8_t* bssid, const uint8_t* clienteMac
     }
 }
 
-// ---- Mejora 1: Ataques activos ----
+// ---- Ataques activos ----
 
 void WiFiHunter::beaconFlood(const char* ssid, int numBeacons) {
     uint8_t beaconFrame[256];
@@ -202,7 +202,7 @@ void WiFiHunter::deauthAllClients(const RedInfo& red, int numPaquetes) {
     Serial.printf("Deauth a todos los clientes de %s\n", red.ssid);
 }
 
-// ---- Mejora 7: Sigilo ----
+// ---- Sigilo ----
 
 void WiFiHunter::setSilentMode(bool enable) {
     silentMode = enable;
@@ -232,7 +232,7 @@ void WiFiHunter::setLED(bool state) {
     digitalWrite(TFT_LED_PIN, state ? HIGH : LOW);
 }
 
-// ---- Callback y gestión de clientes ----
+// ---- Callback ----
 
 void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type) {
     wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t*)buf;
@@ -246,7 +246,6 @@ void WiFiHunter::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type
     uint8_t* addr2 = &frame[10];
     uint8_t* addr3 = &frame[16];
     
-    // Detectar handshake EAPOL
     if (len > 100) {
         int offset = 24;
         for (int i = offset; i < len - 8; i++) {
