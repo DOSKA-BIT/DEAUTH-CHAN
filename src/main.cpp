@@ -20,19 +20,14 @@ GPSModule gps;
 Wardriving wardriver;
 Learning learner;
 
-// Variables de redes
 RedInfo redes[20];
 int numRedes = 0;
-
-// Variables de escaneo
 bool scanning = false;
 unsigned long lastScanTime = 0;
 
-// Variables de clientes
 ClienteInfo* clientes = nullptr;
 int numClientes = 0;
 
-// --- MENÚ ---
 enum MenuScreen {
     SCREEN_MAIN,
     SCREEN_SCAN,
@@ -41,14 +36,10 @@ enum MenuScreen {
     SCREEN_WARDRIVE
 };
 MenuScreen currentScreen = SCREEN_MAIN;
-int selectedNetworkIndex = -1;
-bool attackModeActive = false;
 
-// --- BOTONES ---
 struct Button {
     int x, y, w, h;
     char label[12];
-    bool pressed;
 };
 Button menuButtons[4] = {
     {10, 280, 55, 30, "Escanear"},
@@ -57,18 +48,11 @@ Button menuButtons[4] = {
     {190, 280, 55, 30, "Wardrive"}
 };
 
-// --- CALLBACKS ---
 void onHandshakeCaptured(const uint8_t* frame, uint32_t len) {
     uint32_t ts = millis();
     pcap.writePacket(frame, len, ts/1000, (ts%1000)*1000);
     mascota.incrementarHandshakes();
     Serial.printf("Handshake capturado! %d bytes\n", len);
-}
-
-// --- DIBUJO DE INTERFAZ ---
-void drawMainUI() {
-    // Barra superior (ya la dibuja Mascota::dibujarUI)
-    // Pero añadimos info extra si queremos
 }
 
 void drawMenuButtons() {
@@ -84,7 +68,6 @@ void drawMenuButtons() {
 }
 
 void drawNetworkList() {
-    // Limpiar área de lista (debajo de la mascota)
     tft.fillRect(0, 100, 240, 180, TFT_BLACK);
     int yOffset = 110;
     for (int i = 0; i < numRedes && i < 8; i++) {
@@ -147,23 +130,19 @@ void drawWardriveScreen() {
     tft.print(pos.satellites);
     tft.setCursor(10, 170);
     tft.print("REDES GUARDADAS: ");
-    // Contar líneas del CSV (simplificado)
     File f = SD.open("/wardriving.csv", FILE_READ);
     int lines = 0;
     if (f) {
         while (f.available()) { if (f.read() == '\n') lines++; }
         f.close();
     }
-    tft.print(lines-1); // Restar cabecera
-    
+    tft.print(lines-1);
     tft.setCursor(10, 200);
     tft.setTextColor(TFT_YELLOW);
     tft.print("[Toca para exportar KML]");
 }
 
-// --- MANEJO DE TOQUES ---
 void handleTouch(int x, int y) {
-    // Botones del menú
     for (int i = 0; i < 4; i++) {
         if (x >= menuButtons[i].x && x <= menuButtons[i].x + menuButtons[i].w &&
             y >= menuButtons[i].y && y <= menuButtons[i].y + menuButtons[i].h) {
@@ -172,19 +151,15 @@ void handleTouch(int x, int y) {
         }
     }
     
-    // Comportamiento según pantalla
     switch (currentScreen) {
         case SCREEN_SCAN:
-            // Tocar para iniciar escaneo manual
             if (y > 100 && y < 200) {
                 mascota.setEstado(ESTADO_SCANNING);
                 hunter.startScan();
                 scanning = true;
             }
             break;
-            
         case SCREEN_ATTACK:
-            // Tocar una red de la lista para atacarla
             if (y > 100 && y < 280 && numRedes > 0) {
                 int index = (y - 110) / 20;
                 if (index < numRedes) {
@@ -196,37 +171,29 @@ void handleTouch(int x, int y) {
                 }
             }
             break;
-            
         case SCREEN_CONFIG:
-            // Configuración
             if (x > 10 && x < 150) {
                 if (y > 110 && y < 130) {
-                    // Toggle Sigiloso
                     hunter.setSilentMode(!hunter.isSilentMode());
                 }
                 if (y > 170 && y < 230) {
-                    // Beacon Flood
                     hunter.beaconFlood("DEAUTH_TEST", 50);
                 }
                 if (y > 240 && y < 270) {
-                    // Random MAC
                     hunter.randomizeMAC();
                 }
             }
             break;
-            
         case SCREEN_WARDRIVE:
             if (y > 200 && y < 230) {
                 wardriver.exportKML();
             }
             break;
-            
         default:
             break;
     }
 }
 
-// --- SETUP ---
 void setup() {
     Serial.begin(115200);
     delay(1000);
@@ -255,17 +222,14 @@ void setup() {
     Serial.println("Setup completado");
 }
 
-// --- LOOP ---
 void loop() {
     gps.update();
     hunter.processPendingHandshakes();
     mascota.update();
     
-    // --- DIBUJAR TODO ---
-    mascota.dibujar();  // Dibuja la mascota y la barra superior
-    drawMenuButtons();  // Dibuja los botones de navegación
+    mascota.dibujar();
+    drawMenuButtons();
     
-    // Dibujar contenido según pantalla
     switch (currentScreen) {
         case SCREEN_MAIN:
             tft.fillRect(0, 100, 240, 180, TFT_BLACK);
@@ -282,7 +246,6 @@ void loop() {
                 mascota.setRedesEncontradas(numRedes);
                 scanning = false;
                 mascota.setEstado(ESTADO_IDLE);
-                // Guardar en CSV con wardriving
                 GPSData pos = gps.getData();
                 for (int i = 0; i < numRedes; i++) {
                     wardriver.saveNetwork(redes[i], pos);
@@ -301,13 +264,11 @@ void loop() {
             break;
     }
     
-    // --- TÁCTIL ---
     if (touch.touched()) {
         TS_Point p = touch.getPoint();
         int x = map(p.x, 0, 4095, 0, 240);
         int y = map(p.y, 0, 4095, 0, 320);
         
-        // Si toca la mascota (zona central), interactuar con ella
         if (x >= 80 && x <= 240 && y >= 100 && y <= 280) {
             mascota.tocar(x, y);
         } else {
