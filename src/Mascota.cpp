@@ -8,28 +8,71 @@ Mascota::Mascota() {
     frameAnimacion = 0;
     handshakes = 0;
     redesEncontradas = 0;
-    sprite = nullptr;   // inicializamos el puntero
+    sprite = nullptr;
 }
 
 Mascota::~Mascota() {
     if (sprite) {
-        sprite->deleteSprite();  // liberar memoria
+        sprite->deleteSprite();
         delete sprite;
     }
 }
 
 void Mascota::init(TFT_eSPI *tft) {
     display = tft;
-    // Crear el sprite dinámicamente
     sprite = new TFT_eSprite(display);
     sprite->createSprite(160, 180);
     sprite->setColorDepth(16);
     display->fillScreen(TFT_BLACK);
 }
 
+int Mascota::getNivel() {
+    if (handshakes <= 5) return 1;
+    else if (handshakes <= 15) return 2;
+    else if (handshakes <= 30) return 3;
+    else return 4;
+}
+
+uint16_t Mascota::getColorNivel() {
+    switch (getNivel()) {
+        case 1: return TFT_WHITE;
+        case 2: return TFT_GREEN;
+        case 3: return TFT_SILVER;
+        case 4: return TFT_GOLD;
+        default: return TFT_GREEN;
+    }
+}
+
+void Mascota::dibujarAccesorio(int nivel) {
+    int x = 24, y = 20; // offset dentro del sprite
+    switch (nivel) {
+        case 2: { // Gafas de sol
+            sprite->fillRect(x+8, y+18, 48, 6, TFT_BLACK);
+            sprite->fillRect(x+6, y+16, 10, 10, TFT_BLACK);
+            sprite->fillRect(x+48, y+16, 10, 10, TFT_BLACK);
+            break;
+        }
+        case 3: { // Sombrero de hacker (Guy Fawkes)
+            sprite->fillRect(x+16, y-10, 32, 10, TFT_BLACK);
+            sprite->fillTriangle(x+16, y-10, x+32, y-20, x+48, y-10, TFT_BLACK);
+            sprite->fillCircle(x+32, y-18, 4, TFT_RED);
+            break;
+        }
+        case 4: { // Aura dorada
+            for (int i = 0; i < 12; i++) {
+                int angle = i * 30 + (frameAnimacion % 4) * 4;
+                int r = 40 + sin(radians(angle)) * 8;
+                int x1 = x + 32 + r * cos(radians(angle));
+                int y1 = y + 32 + r * sin(radians(angle));
+                sprite->drawPixel(x1, y1, TFT_YELLOW);
+            }
+            break;
+        }
+    }
+}
+
 void Mascota::update() {
     unsigned long ahora = millis();
-    
     if (ahora - lastFrame > ANIM_FRAME_MS) {
         frameAnimacion++;
         lastFrame = ahora;
@@ -38,7 +81,6 @@ void Mascota::update() {
     if (estadoActual == ESTADO_HAPPY && ahora - estadoStartTime > 3000) {
         setEstado(ESTADO_IDLE);
     }
-    
     if (estadoActual == ESTADO_ATTACK && ahora - estadoStartTime > 2000) {
         setEstado(ESTADO_IDLE);
     }
@@ -54,23 +96,15 @@ void Mascota::setEstado(EstadoMascota nuevo) {
 }
 
 void Mascota::dibujar() {
-    if (!sprite) return;  // seguridad
+    if (!sprite) return;
     
-    // Limpiar el sprite
     sprite->fillSprite(TFT_BLACK);
-    
-    // Dibujar la mascota en el sprite
     dibujarSprite();
-    
-    // Dibujar la UI en la pantalla (fuera del sprite)
     dibujarUI();
-    
-    // Volcar el sprite a la pantalla en (80, 100)
     sprite->pushSprite(80, 100);
 }
 
 void Mascota::dibujarUI() {
-    // Barra superior con estadísticas (directamente en la pantalla)
     display->fillRect(0, 0, 240, 30, TFT_DARKGREY);
     display->setTextColor(TFT_WHITE);
     display->setTextSize(1);
@@ -78,31 +112,25 @@ void Mascota::dibujarUI() {
     display->setCursor(5, 5);
     display->print("HS:");
     display->print(handshakes);
-    
     display->setCursor(80, 5);
     display->print("RED:");
     display->print(redesEncontradas);
-    
     display->setCursor(150, 5);
-    switch(estadoActual) {
-        case ESTADO_IDLE: display->print("IDLE"); break;
-        case ESTADO_SCANNING: display->print("SCAN"); break;
-        case ESTADO_HAPPY: display->print("NICE!"); break;
-        case ESTADO_ATTACK: display->print("ATT!"); break;
-        case ESTADO_SLEEP: display->print("Zzz"); break;
-        default: display->print("???");
-    }
+    display->print("LV:");
+    display->print(getNivel());
     
-    // Barra de humor
     display->drawRect(5, 20, 100, 6, TFT_WHITE);
     int humorWidth = (handshakes * 10) % 100;
     if (humorWidth > 100) humorWidth = 100;
     display->fillRect(6, 21, humorWidth, 4, TFT_GREEN);
 }
 
-// ---- Todos los dibujos ahora usan sprite-> en lugar de display-> ----
+// ---- DIBUJOS DE LA MASCOTA ----
 
 void Mascota::dibujarSprite() {
+    int nivel = getNivel();
+    uint16_t color = getColorNivel();
+    
     switch(estadoActual) {
         case ESTADO_IDLE: dibujarIdle(); break;
         case ESTADO_SCANNING: dibujarScanning(); break;
@@ -111,19 +139,28 @@ void Mascota::dibujarSprite() {
         case ESTADO_SLEEP: dibujarSleep(); break;
         default: dibujarIdle(); break;
     }
+    
+    // Dibujar accesorio según nivel (si no es nivel 1)
+    if (nivel >= 2) {
+        dibujarAccesorio(nivel);
+    }
 }
 
 void Mascota::dibujarCaraBase(uint16_t color) {
     int x = 24, y = 20;
-    sprite->fillRoundRect(x, y, 64, 64, 16, color);
-    sprite->drawRoundRect(x, y, 64, 64, 16, TFT_WHITE);
+    // La cabeza es un poco más grande según el nivel
+    int size = 64 + (getNivel() - 1) * 4; // crece 4px por nivel
+    sprite->fillRoundRect(x - 2, y - 2, size, size, 16, color);
+    sprite->drawRoundRect(x - 2, y - 2, size, size, 16, TFT_WHITE);
+    // Brillo
     sprite->drawLine(x + 10, y + 5, x + 25, y + 5, TFT_WHITE);
     sprite->drawPixel(x + 9, y + 6, TFT_WHITE);
 }
 
+// --- IDLE ---
 void Mascota::dibujarIdle() {
     int x = 24, y = 20;
-    dibujarCaraBase(TFT_GREEN);
+    dibujarCaraBase(getColorNivel());
     
     if (frameAnimacion % 8 < 2) {
         sprite->drawLine(x + 12, y + 20, x + 20, y + 20, TFT_BLACK);
@@ -134,11 +171,11 @@ void Mascota::dibujarIdle() {
         sprite->fillCircle(x + 16, y + 20, 2, TFT_BLACK);
         sprite->fillCircle(x + 48, y + 20, 2, TFT_BLACK);
     }
-    
     sprite->drawLine(x + 20, y + 40, x + 32, y + 44, TFT_BLACK);
     sprite->drawLine(x + 32, y + 44, x + 44, y + 40, TFT_BLACK);
 }
 
+// --- SCANNING ---
 void Mascota::dibujarScanning() {
     int x = 24, y = 20;
     dibujarCaraBase(TFT_CYAN);
@@ -155,6 +192,7 @@ void Mascota::dibujarScanning() {
     sprite->drawLine(x + 24, y + 45, x + 40, y + 45, TFT_BLACK);
 }
 
+// --- HAPPY ---
 void Mascota::dibujarHappy() {
     int x = 24, y = 20;
     dibujarCaraBase(TFT_YELLOW);
@@ -171,11 +209,12 @@ void Mascota::dibujarHappy() {
         sprite->fillCircle(x + 70, y - 10 - (frameAnimacion % 16), 3, TFT_RED);
         sprite->fillCircle(x + 74, y - 10 - (frameAnimacion % 16), 3, TFT_RED);
         sprite->fillTriangle(x + 67, y - 7 - (frameAnimacion % 16), 
-                             x + 77, y - 7 - (frameAnimacion % 16), 
-                             x + 72, y - 2 - (frameAnimacion % 16), TFT_RED);
+                            x + 77, y - 7 - (frameAnimacion % 16), 
+                            x + 72, y - 2 - (frameAnimacion % 16), TFT_RED);
     }
 }
 
+// --- ATTACK ---
 void Mascota::dibujarAttack() {
     int x = 24, y = 20;
     dibujarCaraBase(TFT_RED);
@@ -193,12 +232,11 @@ void Mascota::dibujarAttack() {
     sprite->drawLine(x + 64, y + 48, x + 80, y + 40, TFT_YELLOW);
 }
 
+// --- SLEEP ---
 void Mascota::dibujarSleep() {
     int x = 24, y = 20;
-    
     sprite->fillRoundRect(x, y, 64, 64, 16, TFT_NAVY);
     sprite->drawRoundRect(x, y, 64, 64, 16, TFT_BLUE);
-    
     sprite->drawLine(x + 12, y + 22, x + 20, y + 22, TFT_WHITE);
     sprite->drawLine(x + 44, y + 22, x + 52, y + 22, TFT_WHITE);
     sprite->drawPixel(x + 32, y + 42, TFT_WHITE);
@@ -218,7 +256,7 @@ void Mascota::dibujarSleep() {
     }
 }
 
-// ---- Interacciones ----
+// ---- INTERACCIONES ----
 
 void Mascota::incrementarHandshakes() {
     handshakes++;
