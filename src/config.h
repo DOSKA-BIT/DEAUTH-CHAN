@@ -3,21 +3,17 @@
 
 #include <Arduino.h>
 
-// Pines CYD (ajustar según modelo específico)
 #define TFT_LED_PIN 21
 #define TOUCH_CS 14
 #define TOUCH_IRQ 13
 #define SD_CS 5
 
-// Pantalla
 #define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 320
 
-// Timing
 #define ANIM_FRAME_MS 200
 #define SCAN_INTERVAL 5000
 
-// Estados de la mascota
 enum EstadoMascota {
     ESTADO_IDLE = 0,
     ESTADO_SCANNING,
@@ -27,7 +23,6 @@ enum EstadoMascota {
     ESTADO_COUNT
 };
 
-// Estructura para redes detectadas
 struct RedInfo {
     char ssid[33];
     uint8_t bssid[6];
