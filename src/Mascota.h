@@ -36,7 +36,6 @@ private:
     int handshakes;
     int redesEncontradas;
     
-    // Evolución
     int getNivel();
     uint16_t getColorNivel();
     void dibujarAccesorio(int nivel);
@@ -49,7 +48,12 @@ private:
     void dibujarAttack();
     void dibujarSleep();
     
-    void dibujarCaraBase(uint16_t color);
+    // Nuevas funciones para el cuerpo anime
+    void dibujarCuerpo();
+    void dibujarCabello();
+    void dibujarOjos(int estado);
+    void dibujarBoca(int estado);
+    void dibujarSudadera();
 };
 
 #endif
