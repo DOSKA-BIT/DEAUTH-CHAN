@@ -5,11 +5,10 @@
 #include <pgmspace.h>
 
 struct OUIRecord {
-    uint32_t oui;      // 3 bytes en 0xXXYYZZ
+    uint32_t oui;
     const char* nombre;
 };
 
-// Solo los fabricantes más comunes en dispositivos domésticos
 static const OUIRecord ouiDB[] PROGMEM = {
     {0x000017, "Apple"},
     {0x00037F, "Huawei"},
@@ -136,7 +135,6 @@ static const OUIRecord ouiDB[] PROGMEM = {
     {0xFCFFAA, "Xiaomi"}
 };
 
-// Búsqueda lineal (rápida con ~100 elementos)
 inline const char* buscarOUI(uint8_t* mac) {
     uint32_t oui = (mac[0] << 16) | (mac[1] << 8) | mac[2];
     for (int i = 0; i < sizeof(ouiDB)/sizeof(ouiDB[0]); i++) {
@@ -148,4 +146,5 @@ inline const char* buscarOUI(uint8_t* mac) {
     }
     return "Desconocido";
 }
+
 #endif
