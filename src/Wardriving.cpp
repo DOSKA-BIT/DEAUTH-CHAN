@@ -30,10 +30,6 @@ void Wardriving::setFilterByEncryption(bool enabled, int authMode) {
 void Wardriving::saveNetwork(const RedInfo& red, const GPSData& pos) {
     if (!csvFile) return;
     
-    // Filtro por cifrado (necesita ajuste, por ahora se guarda todo)
-    // En una implementación real, se podría obtener el tipo de cifrado de la red
-    // pero lo dejamos simple por ahora.
-    
     csvFile.printf("%s,%s,%02X:%02X:%02X:%02X:%02X:%02X,%d,%d,%d,%.6f,%.6f,%.1f\n",
         pos.valid ? pos.timestamp : "NO_FIX",
         red.ssid,
