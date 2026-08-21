@@ -1,26 +1,29 @@
 #include <Arduino.h>
+#include <TFT_eSPI.h>
 
-// Definir el pin de retroiluminación (cambia según tu placa)
-#define TFT_BL 21
+TFT_eSPI tft = TFT_eSPI();
 
 void setup() {
     Serial.begin(115200);
     delay(2000);
-    Serial.println("Prueba de retroiluminación...");
+    Serial.println("Iniciando prueba de pantalla...");
 
-    // Encender la retroiluminación
-    pinMode(TFT_BL, OUTPUT);
-    digitalWrite(TFT_BL, HIGH);
-    
-    Serial.println("Retroiluminación encendida (espera 5 segundos)");
-    delay(5000);
-    
-    // Apagar y encender para comprobar
-    digitalWrite(TFT_BL, LOW);
-    Serial.println("Apagada");
-    delay(2000);
-    digitalWrite(TFT_BL, HIGH);
-    Serial.println("Encendida de nuevo");
+    // Encender backlight
+    pinMode(21, OUTPUT);
+    digitalWrite(21, HIGH);
+
+    // Inicializar pantalla
+    tft.init();
+    tft.setRotation(1);
+    tft.fillScreen(TFT_BLUE);
+    tft.setTextColor(TFT_WHITE, TFT_BLUE);
+    tft.setTextSize(3);
+    tft.setCursor(40, 100);
+    tft.println("HOLA");
+    tft.setTextSize(1);
+    tft.setCursor(20, 160);
+    tft.println("Pantalla OK");
+    Serial.println("Texto dibujado");
 }
 
 void loop() {
