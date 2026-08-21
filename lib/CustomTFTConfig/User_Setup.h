@@ -1,11 +1,10 @@
-// Configuración estándar para CYD (funciona en casi todos)
+// Configuración ESP32-2432S028 (CYD 2.8")
 
 #define ILI9341_DRIVER
 
 #define TFT_CS   15
 #define TFT_DC   2
-#define TFT_RST  4
-
+#define TFT_RST  -1
 #define TFT_MISO 19
 #define TFT_MOSI 23
 #define TFT_SCLK 18
@@ -22,3 +21,4 @@
 #define LOAD_FONT6
 #define LOAD_FONT7
 #define LOAD_GFXFF
+#define SMOOTH_FONT
