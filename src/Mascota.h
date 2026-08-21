@@ -7,38 +7,26 @@
 class Mascota {
 public:
     Mascota();
-    ~Mascota();
     void init(TFT_eSPI *tft);
     void update();
     void setEstado(EstadoMascota estado);
     void dibujar();
-    
     void incrementarHandshakes();
     void setRedesEncontradas(int cantidad);
+    void tocar(int tx, int ty);  // ✅ AGREGADO
     
     int getHandshakes() { return handshakes; }
     int getRedesEncontradas() { return redesEncontradas; }
-    EstadoMascota getEstado() { return estadoActual; }
-    
-    void tocar(int tx, int ty);
-    
+
 private:
     TFT_eSPI *display;
-    TFT_eSprite *sprite;
-    
     EstadoMascota estadoActual;
     EstadoMascota estadoAnterior;
-    
     unsigned long lastFrame;
     unsigned long estadoStartTime;
     uint8_t frameAnimacion;
-    
     int handshakes;
     int redesEncontradas;
-    
-    int getNivel();
-    uint16_t getColorNivel();
-    void dibujarAccesorio(int nivel);
     
     void dibujarSprite();
     void dibujarUI();
@@ -47,12 +35,7 @@ private:
     void dibujarHappy();
     void dibujarAttack();
     void dibujarSleep();
-    
-    void dibujarCuerpo();
-    void dibujarCabello();
-    void dibujarOjos(int estado);
-    void dibujarBoca(int estado);
-    void dibujarSudadera();
+    void dibujarCaraBase(uint16_t color);
 };
 
 #endif
