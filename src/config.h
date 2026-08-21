@@ -3,9 +3,9 @@
 
 #include <Arduino.h>
 
+// Pines ESP32-2432S028
 #define TFT_LED_PIN 21
 #define TOUCH_CS 14
-#define TOUCH_IRQ 13
 #define SD_CS 5
 
 #define SCREEN_WIDTH 240
