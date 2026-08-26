@@ -1,71 +1,67 @@
 #include "Learning.h"
 
 void Learning::begin() {
-    loadFromSD();
-    Serial.println("Sistema de aprendizaje iniciado");
+    cargarDesdeSD();
+    Serial.printf("Memoria de redes cargada: %d redes conocidas\n", numStats);
 }
 
-void Learning::registerHandshake(const RedInfo& red) {
-    RedStats* s = findOrCreate(red.bssid);
-    if (s) {
-        s->handshakesCapturados++;
-        if (s->ssid[0] == '\0') {
-            strncpy(s->ssid, red.ssid, 32);
-            s->ssid[32] = '\0';
+bool Learning::registrarAvistamiento(const RedInfo& red) {
+    RedStats* existente = buscar(red.bssid);
+    unsigned long ahora = millis();
+
+    if (existente) {
+        existente->vecesVista++;
+        existente->ultimaVez = ahora;
+        if (red.rssi > existente->mejorRSSI) {
+            existente->mejorRSSI = red.rssi;
         }
-        saveToSD();
+        guardarEnSD();
+        return false;
     }
-}
 
-void Learning::registerAttack(const RedInfo& red) {
-    RedStats* s = findOrCreate(red.bssid);
-    if (s) {
-        s->intentosAtaque++;
-        s->ultimoAtaque = millis();
-        saveToSD();
+    if (numStats >= MAX_REDES_ESCANEO) {
+        // Se lleno el historial: descarto la mas vieja para hacerle
+        // lugar a la nueva, priorizando lo reciente por sobre lo viejo.
+        int indiceMasViejo = 0;
+        for (int i = 1; i < numStats; i++) {
+            if (stats[i].ultimaVez < stats[indiceMasViejo].ultimaVez) {
+                indiceMasViejo = i;
+            }
+        }
+        memmove(&stats[indiceMasViejo], &stats[indiceMasViejo + 1],
+                sizeof(RedStats) * (numStats - indiceMasViejo - 1));
+        numStats--;
     }
+
+    memcpy(stats[numStats].bssid, red.bssid, 6);
+    strncpy(stats[numStats].ssid, red.ssid, 32);
+    stats[numStats].ssid[32] = '\0';
+    stats[numStats].vecesVista = 1;
+    stats[numStats].mejorRSSI = red.rssi;
+    stats[numStats].primeraVez = ahora;
+    stats[numStats].ultimaVez = ahora;
+    numStats++;
+
+    guardarEnSD();
+    return true;
 }
 
 RedStats* Learning::getStats(const uint8_t* bssid) {
-    return findOrCreate(bssid);
+    return buscar(bssid);
 }
 
-void Learning::prioritizeNetworks(RedInfo* redes, int numRedes) {
-    for (int i = 0; i < numRedes - 1; i++) {
-        for (int j = 0; j < numRedes - i - 1; j++) {
-            RedStats* stats1 = getStats(redes[j].bssid);
-            RedStats* stats2 = getStats(redes[j+1].bssid);
-            int score1 = stats1 ? stats1->handshakesCapturados : 0;
-            int score2 = stats2 ? stats2->handshakesCapturados : 0;
-            if (score1 < score2) {
-                RedInfo temp = redes[j];
-                redes[j] = redes[j+1];
-                redes[j+1] = temp;
-            }
-        }
-    }
-}
-
-RedStats* Learning::findOrCreate(const uint8_t* bssid) {
+RedStats* Learning::buscar(const uint8_t* bssid) {
     for (int i = 0; i < numStats; i++) {
         if (memcmp(stats[i].bssid, bssid, 6) == 0) {
             return &stats[i];
         }
     }
-    if (numStats < 20) {
-        memcpy(stats[numStats].bssid, bssid, 6);
-        stats[numStats].ssid[0] = '\0';
-        stats[numStats].handshakesCapturados = 0;
-        stats[numStats].intentosAtaque = 0;
-        stats[numStats].ultimoAtaque = 0;
-        return &stats[numStats++];
-    }
     return nullptr;
 }
 
-void Learning::saveToSD() {
-    if (!SD.begin(SD_CS)) return;
-    File file = SD.open("/learning.bin", FILE_WRITE);
+void Learning::guardarEnSD() {
+    if (!SD.begin(SD_CS_PIN)) return;
+    File file = SD.open("/redes_conocidas.bin", FILE_WRITE);
     if (file) {
         file.write((uint8_t*)&numStats, sizeof(numStats));
         file.write((uint8_t*)stats, sizeof(RedStats) * numStats);
@@ -73,12 +69,16 @@ void Learning::saveToSD() {
     }
 }
 
-void Learning::loadFromSD() {
-    if (!SD.begin(SD_CS)) return;
-    File file = SD.open("/learning.bin", FILE_READ);
+void Learning::cargarDesdeSD() {
+    if (!SD.begin(SD_CS_PIN)) {
+        numStats = 0;
+        return;
+    }
+
+    File file = SD.open("/redes_conocidas.bin", FILE_READ);
     if (file) {
         file.read((uint8_t*)&numStats, sizeof(numStats));
-        if (numStats > 20) numStats = 20;
+        if (numStats > MAX_REDES_ESCANEO) numStats = MAX_REDES_ESCANEO;
         file.read((uint8_t*)stats, sizeof(RedStats) * numStats);
         file.close();
     } else {

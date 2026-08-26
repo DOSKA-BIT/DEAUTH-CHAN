@@ -13,7 +13,7 @@ public:
     void saveNetwork(const RedInfo& red, const GPSData& pos);
     void exportKML();
     void setFilterByEncryption(bool enabled, int authMode);
-    
+
 private:
     File csvFile;
     bool filterEnabled = false;

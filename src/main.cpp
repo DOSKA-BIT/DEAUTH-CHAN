@@ -1,191 +1,234 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
-#include <XPT2046_Touchscreen.h>
 #include <SD.h>
 #include "config.h"
+#include "boards/BoardConfig.h"
+#include "TouchDriver.h"
+#if TOUCH_IS_CAPACITIVE
+    #error "Touch capacitivo todavia no tiene driver (fase 2)"
+#else
+    #include "TouchResistive.h"
+#endif
 #include "Mascota.h"
-#include "WiFiHunter.h"
+#include "WiFiScanner.h"
 #include "PCAPWriter.h"
 #include "GPSModule.h"
 #include "Wardriving.h"
 #include "Learning.h"
 
 TFT_eSPI tft = TFT_eSPI();
-XPT2046_Touchscreen touch(TOUCH_CS, TOUCH_IRQ);
+TouchResistive touchDriver;
 
 Mascota mascota;
-WiFiHunter hunter;
+WiFiScanner scanner;
 PCAPWriter pcap;
 GPSModule gps;
 Wardriving wardriver;
-Learning learner;
+Learning aprendizaje;
 
-RedInfo redes[20];
+RedInfo redes[MAX_REDES_ESCANEO];
 int numRedes = 0;
-bool scanning = false;
-unsigned long lastScanTime = 0;
-
-ClienteInfo* clientes = nullptr;
-int numClientes = 0;
+bool escaneando = false;
 
 enum MenuScreen {
     SCREEN_MAIN,
     SCREEN_SCAN,
-    SCREEN_ATTACK,
-    SCREEN_CONFIG,
-    SCREEN_WARDRIVE
+    SCREEN_STATS,
+    SCREEN_WARDRIVE,
+    SCREEN_CONFIG
 };
-MenuScreen currentScreen = SCREEN_MAIN;
+MenuScreen pantallaActual = SCREEN_MAIN;
 
-struct Button {
+struct Boton {
     int x, y, w, h;
-    char label[12];
-};
-Button menuButtons[4] = {
-    {10, 280, 55, 30, "Escanear"},
-    {70, 280, 55, 30, "Atacar"},
-    {130, 280, 55, 30, "Config"},
-    {190, 280, 55, 30, "Wardrive"}
+    const char* label;
 };
 
-void onHandshakeCaptured(const uint8_t* frame, uint32_t len) {
-    uint32_t ts = millis();
-    pcap.writePacket(frame, len, ts/1000, (ts%1000)*1000);
-    mascota.incrementarHandshakes();
-    Serial.printf("Handshake capturado! %d bytes\n", len);
-}
+// El ancho de cada boton se calcula en runtime a partir de
+// TFT_PANEL_WIDTH asi que la barra de menu ocupa todo el ancho de la
+// pantalla sin importar si son 240px o 480px.
+Boton menuBotones[4];
 
-void drawMenuButtons() {
+const char* NOMBRES_MENU[4] = {"Escanear", "Stats", "Wardrive", "Config"};
+
+void calcularLayoutMenu() {
+    int anchoBoton = TFT_PANEL_WIDTH / 4;
+    int y = TFT_PANEL_HEIGHT - 40;
     for (int i = 0; i < 4; i++) {
-        int color = (currentScreen == i) ? TFT_GREEN : TFT_DARKGREY;
-        tft.fillRoundRect(menuButtons[i].x, menuButtons[i].y, menuButtons[i].w, menuButtons[i].h, 4, color);
-        tft.drawRoundRect(menuButtons[i].x, menuButtons[i].y, menuButtons[i].w, menuButtons[i].h, 4, TFT_WHITE);
-        tft.setTextColor(TFT_WHITE);
-        tft.setTextSize(1);
-        tft.setCursor(menuButtons[i].x + 4, menuButtons[i].y + 10);
-        tft.print(menuButtons[i].label);
+        menuBotones[i].x = i * anchoBoton;
+        menuBotones[i].y = y;
+        menuBotones[i].w = anchoBoton - 2;
+        menuBotones[i].h = 34;
+        menuBotones[i].label = NOMBRES_MENU[i];
     }
 }
 
-void drawNetworkList() {
-    tft.fillRect(0, 100, 240, 180, TFT_BLACK);
+void dibujarMenuBotones() {
+    for (int i = 0; i < 4; i++) {
+        // i+1 porque SCREEN_MAIN no tiene boton propio, el indice del
+        // menu arranca en SCREEN_SCAN
+        bool activo = ((int)pantallaActual == i + 1);
+        uint16_t color = activo ? TFT_GREEN : TFT_DARKGREY;
+        tft.fillRoundRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, 4, color);
+        tft.drawRoundRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, 4, TFT_WHITE);
+        tft.setTextColor(TFT_WHITE);
+        tft.setTextSize(1);
+        tft.setCursor(menuBotones[i].x + 4, menuBotones[i].y + 12);
+        tft.print(menuBotones[i].label);
+    }
+}
+
+int alturaListado() {
+    // Deja lugar para la cabecera de la mascota arriba y la barra de
+    // menu abajo, el resto es zona util para listas de texto.
+    return TFT_PANEL_HEIGHT - 40 - 100;
+}
+
+void dibujarListaRedes() {
+    tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
     int yOffset = 110;
-    for (int i = 0; i < numRedes && i < 8; i++) {
-        char buf[32];
-        sprintf(buf, "%d.%s", i+1, redes[i].ssid);
+    int maxVisibles = alturaListado() / 20;
+
+    for (int i = 0; i < numRedes && i < maxVisibles; i++) {
+        char buf[40];
         if (strlen(redes[i].ssid) == 0) {
-            sprintf(buf, "%d.*OCULTA*", i+1);
+            sprintf(buf, "%d.*OCULTA*", i + 1);
+        } else {
+            sprintf(buf, "%d.%s", i + 1, redes[i].ssid);
         }
-        tft.setTextColor(TFT_YELLOW);
+        tft.setTextColor(redes[i].tieneClave ? TFT_YELLOW : TFT_RED);
         tft.setCursor(5, yOffset);
         tft.print(buf);
+
         tft.setTextColor(TFT_WHITE);
-        tft.setCursor(160, yOffset);
+        tft.setCursor(TFT_PANEL_WIDTH - 70, yOffset);
         tft.print(redes[i].rssi);
         tft.print("dBm");
         yOffset += 20;
     }
+
+    if (numRedes == 0 && !escaneando) {
+        tft.setTextColor(TFT_DARKGREY);
+        tft.setCursor(10, 130);
+        tft.print("Toca aca para escanear");
+    }
 }
 
-void drawConfigScreen() {
-    tft.fillRect(0, 100, 240, 180, TFT_BLACK);
+void dibujarPantallaStats() {
+    tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
     tft.setTextColor(TFT_CYAN);
     tft.setCursor(10, 110);
-    tft.print("MODO SIGILOSO: ");
-    tft.setTextColor(hunter.isSilentMode() ? TFT_GREEN : TFT_RED);
-    tft.print(hunter.isSilentMode() ? "ON" : "OFF");
-    tft.setCursor(10, 140);
+    tft.print("MEMORIA DE REDES");
+
     tft.setTextColor(TFT_WHITE);
-    tft.print("[Toca para cambiar]");
-    
-    tft.setCursor(10, 170);
-    tft.setTextColor(TFT_YELLOW);
-    tft.print("BEACON FLOOD:");
-    tft.setTextColor(TFT_WHITE);
-    tft.setCursor(10, 185);
-    tft.print("SSID: DEAUTH_TEST");
-    tft.setCursor(10, 210);
-    tft.print("[Toca para enviar]");
-    
-    tft.setCursor(10, 240);
-    tft.setTextColor(TFT_PURPLE);
-    tft.print("RANDOM MAC:");
-    tft.setTextColor(TFT_WHITE);
-    tft.setCursor(10, 255);
-    tft.print("[Toca para cambiar]");
+    tft.setCursor(10, 135);
+    tft.print("Redes conocidas: ");
+    tft.print(aprendizaje.getTotalRedesConocidas());
+
+    tft.setCursor(10, 155);
+    tft.print("Vistas este escaneo: ");
+    tft.print(numRedes);
+
+    tft.setCursor(10, 175);
+    tft.print("Nuevas descubiertas: ");
+    tft.print(mascota.getRedesNuevas());
+
+    if (numRedes > 0) {
+        RedStats* s = aprendizaje.getStats(redes[0].bssid);
+        if (s) {
+            tft.setCursor(10, 205);
+            tft.setTextColor(TFT_YELLOW);
+            tft.print("Ultima red top: ");
+            tft.print(s->ssid);
+            tft.setCursor(10, 225);
+            tft.setTextColor(TFT_WHITE);
+            tft.print("Vista ");
+            tft.print(s->vecesVista);
+            tft.print(" veces");
+        }
+    }
 }
 
-void drawWardriveScreen() {
-    tft.fillRect(0, 100, 240, 180, TFT_BLACK);
+void dibujarPantallaWardrive() {
+    tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
     tft.setTextColor(TFT_ORANGE);
     tft.setCursor(10, 110);
-    tft.print("WARDROVING");
+    tft.print("WARDRIVING");
+
     tft.setTextColor(TFT_WHITE);
     tft.setCursor(10, 130);
     tft.print("GPS: ");
     GPSData pos = gps.getData();
-    tft.print(pos.valid ? "FIX" : "NO FIX");
+    tft.print(pos.valid ? "FIX" : "SIN FIX");
+
     tft.setCursor(10, 150);
-    tft.print("SAT: ");
+    tft.print("Satelites: ");
     tft.print(pos.satellites);
+
     tft.setCursor(10, 170);
-    tft.print("REDES GUARDADAS: ");
+    tft.print("Redes guardadas: ");
     File f = SD.open("/wardriving.csv", FILE_READ);
-    int lines = 0;
+    int lineas = 0;
     if (f) {
-        while (f.available()) { if (f.read() == '\n') lines++; }
+        while (f.available()) { if (f.read() == '\n') lineas++; }
         f.close();
+        lineas -= 1;
     }
-    tft.print(lines-1);
+    tft.print(lineas > 0 ? lineas : 0);
+
     tft.setCursor(10, 200);
     tft.setTextColor(TFT_YELLOW);
     tft.print("[Toca para exportar KML]");
 }
 
-void handleTouch(int x, int y) {
+void dibujarPantallaConfig() {
+    tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
+    tft.setTextColor(TFT_CYAN);
+    tft.setCursor(10, 110);
+    tft.print("Placa: ");
+    tft.setTextColor(TFT_WHITE);
+    tft.print(BOARD_NAME);
+
+    tft.setTextColor(TFT_CYAN);
+    tft.setCursor(10, 130);
+    tft.print("Pantalla: ");
+    tft.setTextColor(TFT_WHITE);
+    tft.print(TFT_PANEL_WIDTH);
+    tft.print("x");
+    tft.print(TFT_PANEL_HEIGHT);
+
+    tft.setTextColor(TFT_CYAN);
+    tft.setCursor(10, 150);
+    tft.print("Touch: ");
+    tft.setTextColor(TFT_WHITE);
+    tft.print(TOUCH_IS_CAPACITIVE ? "Capacitivo" : "Resistivo");
+
+    tft.setTextColor(TFT_CYAN);
+    tft.setCursor(10, 170);
+    tft.print("SD: ");
+    tft.setTextColor(SD.begin(SD_CS_PIN) ? TFT_GREEN : TFT_RED);
+    tft.print(SD.begin(SD_CS_PIN) ? "OK" : "No detectada");
+}
+
+void manejarToque(int x, int y) {
     for (int i = 0; i < 4; i++) {
-        if (x >= menuButtons[i].x && x <= menuButtons[i].x + menuButtons[i].w &&
-            y >= menuButtons[i].y && y <= menuButtons[i].y + menuButtons[i].h) {
-            currentScreen = (MenuScreen)i;
+        if (x >= menuBotones[i].x && x <= menuBotones[i].x + menuBotones[i].w &&
+            y >= menuBotones[i].y && y <= menuBotones[i].y + menuBotones[i].h) {
+            pantallaActual = (MenuScreen)(i + 1);
             return;
         }
     }
-    
-    switch (currentScreen) {
+
+    switch (pantallaActual) {
         case SCREEN_SCAN:
-            if (y > 100 && y < 200) {
+            if (y > 100 && y < 100 + alturaListado() && !escaneando) {
                 mascota.setEstado(ESTADO_SCANNING);
-                hunter.startScan();
-                scanning = true;
-            }
-            break;
-        case SCREEN_ATTACK:
-            if (y > 100 && y < 280 && numRedes > 0) {
-                int index = (y - 110) / 20;
-                if (index < numRedes) {
-                    mascota.setEstado(ESTADO_ATTACK);
-                    hunter.deauth(redes[index], nullptr, 30);
-                    learner.registerAttack(redes[index]);
-                    delay(200);
-                    mascota.setEstado(ESTADO_IDLE);
-                }
-            }
-            break;
-        case SCREEN_CONFIG:
-            if (x > 10 && x < 150) {
-                if (y > 110 && y < 130) {
-                    hunter.setSilentMode(!hunter.isSilentMode());
-                }
-                if (y > 170 && y < 230) {
-                    hunter.beaconFlood("DEAUTH_TEST", 50);
-                }
-                if (y > 240 && y < 270) {
-                    hunter.randomizeMAC();
-                }
+                scanner.startScan();
+                escaneando = true;
             }
             break;
         case SCREEN_WARDRIVE:
-            if (y > 200 && y < 230) {
+            if (y > 195 && y < 220) {
                 wardriver.exportKML();
             }
             break;
@@ -197,84 +240,90 @@ void handleTouch(int x, int y) {
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    Serial.println("DEAUTH-CHAN v2.0 - INTERFAZ PROFESIONAL");
-    
-    pinMode(TFT_LED_PIN, OUTPUT);
-    digitalWrite(TFT_LED_PIN, HIGH);
-    
+    Serial.printf("CYD Wardriver iniciando en %s\n", BOARD_NAME);
+
+    pinMode(TFT_BL_PIN, OUTPUT);
+    digitalWrite(TFT_BL_PIN, HIGH);
+
     tft.init();
     tft.setRotation(0);
     tft.fillScreen(TFT_BLACK);
-    
-    touch.begin();
+
+    touchDriver.begin();
+    calcularLayoutMenu();
     mascota.init(&tft);
-    
-    if (pcap.begin("deauth")) {
-        Serial.println("PCAP iniciado");
+
+    if (pcap.begin("wardrive")) {
+        Serial.println("PCAP listo");
     }
-    
+
     gps.begin();
-    hunter.begin();
-    hunter.setHandshakeCallback(onHandshakeCaptured);
+    scanner.begin();
     wardriver.begin();
-    learner.begin();
-    
+    aprendizaje.begin();
+
     Serial.println("Setup completado");
 }
 
 void loop() {
     gps.update();
-    hunter.processPendingHandshakes();
     mascota.update();
-    
+
     mascota.dibujar();
-    drawMenuButtons();
-    
-    switch (currentScreen) {
+    dibujarMenuBotones();
+
+    switch (pantallaActual) {
         case SCREEN_MAIN:
-            tft.fillRect(0, 100, 240, 180, TFT_BLACK);
+            tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
             tft.setTextColor(TFT_WHITE);
-            tft.setCursor(30, 150);
-            tft.print("Bienvenido");
-            tft.setCursor(50, 180);
-            tft.print("Toca un boton");
+            tft.setCursor(20, 150);
+            tft.print("Bienvenido a bordo");
+            tft.setCursor(20, 175);
+            tft.print("Toca un boton de abajo");
             break;
+
         case SCREEN_SCAN:
-            drawNetworkList();
-            if (scanning && hunter.isScanDone()) {
-                hunter.getScanResults(redes, 20, numRedes);
+            dibujarListaRedes();
+            if (escaneando && scanner.isScanDone()) {
+                scanner.getScanResults(redes, MAX_REDES_ESCANEO, numRedes);
                 mascota.setRedesEncontradas(numRedes);
-                scanning = false;
+                escaneando = false;
                 mascota.setEstado(ESTADO_IDLE);
+
                 GPSData pos = gps.getData();
                 for (int i = 0; i < numRedes; i++) {
                     wardriver.saveNetwork(redes[i], pos);
+                    bool esNueva = aprendizaje.registrarAvistamiento(redes[i]);
+                    if (esNueva) {
+                        mascota.incrementarRedesNuevas();
+                    }
                 }
                 Serial.printf("Escaneo completado: %d redes\n", numRedes);
             }
             break;
-        case SCREEN_ATTACK:
-            drawNetworkList();
+
+        case SCREEN_STATS:
+            dibujarPantallaStats();
             break;
-        case SCREEN_CONFIG:
-            drawConfigScreen();
-            break;
+
         case SCREEN_WARDRIVE:
-            drawWardriveScreen();
+            dibujarPantallaWardrive();
+            break;
+
+        case SCREEN_CONFIG:
+            dibujarPantallaConfig();
             break;
     }
-    
-    if (touch.touched()) {
-        TS_Point p = touch.getPoint();
-        int x = map(p.x, 0, 4095, 0, 240);
-        int y = map(p.y, 0, 4095, 0, 320);
-        
-        if (x >= 80 && x <= 240 && y >= 100 && y <= 280) {
-            mascota.tocar(x, y);
+
+    TouchPoint toque = touchDriver.read();
+    if (toque.pressed) {
+        if (toque.x >= TFT_PANEL_WIDTH / 3 && toque.y >= 100 && toque.y <= 100 + alturaListado()
+            && pantallaActual == SCREEN_MAIN) {
+            mascota.tocar(toque.x, toque.y);
         } else {
-            handleTouch(x, y);
+            manejarToque(toque.x, toque.y);
         }
     }
-    
+
     delay(10);
 }

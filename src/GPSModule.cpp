@@ -1,11 +1,13 @@
 #include "GPSModule.h"
+#include "boards/BoardConfig.h"
 
 void GPSModule::begin() {
-    // NEO-6M en Serial2: TX=GPIO17, RX=GPIO16
+    // El NEO-6M no viene integrado en ninguna CYD, se conecta aparte a
+    // los pines libres que definio el perfil de la placa en uso.
     gpsSerial = &Serial2;
-    gpsSerial->begin(9600, SERIAL_8N1, 16, 17);
-    
-    Serial.println("GPS iniciado en Serial2 (TX=17, RX=16)");
+    gpsSerial->begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+
+    Serial.printf("GPS iniciado en Serial2 (RX=%d, TX=%d)\n", GPS_RX_PIN, GPS_TX_PIN);
 }
 
 void GPSModule::update() {
@@ -16,7 +18,7 @@ void GPSModule::update() {
 
 GPSData GPSModule::getData() {
     GPSData data;
-    
+
     if (gps.location.isValid()) {
         data.lat = gps.location.lat();
         data.lng = gps.location.lng();
@@ -24,8 +26,7 @@ GPSData GPSModule::getData() {
         data.satellites = gps.satellites.value();
         data.valid = true;
         lastValidFix = millis();
-        
-        // Crear timestamp
+
         if (gps.date.isValid() && gps.time.isValid()) {
             sprintf(data.timestamp, "%04d-%02d-%02d %02d:%02d:%02d",
                 gps.date.year(),
@@ -46,7 +47,7 @@ GPSData GPSModule::getData() {
         data.valid = false;
         strcpy(data.timestamp, "NO_FIX");
     }
-    
+
     return data;
 }
 

@@ -19,7 +19,7 @@ public:
     void update();
     GPSData getData();
     bool hasFix();
-    
+
 private:
     TinyGPSPlus gps;
     HardwareSerial* gpsSerial;
