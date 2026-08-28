@@ -5,6 +5,13 @@
 
 #define ST7796_DRIVER
 
+// Fuerza la pantalla al periferico HSPI en vez del VSPI que usa
+// TFT_eSPI por defecto. Sin esto, TFT_eSPI y cualquier otro
+// dispositivo SPI (touch dedicado, SD) terminan peleando por el mismo
+// periferico VSPI aunque esten mapeados a pines fisicos distintos,
+// porque ambos son en el fondo el mismo controlador de hardware.
+#define USE_HSPI_PORT
+
 #define TFT_WIDTH   320
 #define TFT_HEIGHT  480
 
