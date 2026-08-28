@@ -6,13 +6,17 @@
 // CYD_BOARD_2432S024, CYD_BOARD_3248S035R, CYD_BOARD_3248S035C o
 // CYD_BOARD_2424S012 (build_flags -D).
 //
-// Lo que cada perfil tiene que declarar como mínimo:
-//   TFT_PANEL_WIDTH / TFT_PANEL_HEIGHT   -> resolución en orientación nativa
-//   TOUCH_IS_CAPACITIVE                  -> 0 = XPT2046 resistivo, 1 = capacitivo (GT911/CST816)
+// Lo que cada perfil tiene que declarar como minimo:
+//   TFT_PANEL_WIDTH / TFT_PANEL_HEIGHT   -> resolucion en orientacion nativa
+//   TOUCH_IS_CAPACITIVE                  -> 0 = resistivo XPT2046, 1 = capacitivo GT911
+//   TOUCH_SHARES_TFT_BUS                 -> solo si no es capacitivo: 1 si el
+//                                            touch usa el mismo SPI que la
+//                                            pantalla (solo cambia CS), 0 si
+//                                            tiene su propio bus SPI dedicado
 //   TFT_BL_PIN                            -> pin de backlight
 //   SD_CS_PIN
 //   (los pines de SPI del TFT quedan en el User_Setup.h de TFT_eSPI,
-//    no acá, porque esa librería los necesita como defines de compilación)
+//    no aca, porque esa libreria los necesita como defines de compilacion)
 
 #if defined(CYD_BOARD_2432S028)
     #include "Board_2432S028.h"
@@ -30,6 +34,10 @@
 
 #ifndef TOUCH_IS_CAPACITIVE
     #error "El perfil de placa tiene que definir TOUCH_IS_CAPACITIVE (0 o 1)"
+#endif
+
+#if !TOUCH_IS_CAPACITIVE && !defined(TOUCH_SHARES_TFT_BUS)
+    #error "Placas con touch resistivo tienen que definir TOUCH_SHARES_TFT_BUS (0 o 1)"
 #endif
 
 #endif
