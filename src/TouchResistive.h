@@ -1,21 +1,36 @@
 #ifndef TOUCH_RESISTIVE_H
 #define TOUCH_RESISTIVE_H
 
+#include <SPI.h>
 #include <XPT2046_Touchscreen.h>
 #include "TouchDriver.h"
 #include "boards/BoardConfig.h"
 
-// Wrapper de la libreria de Paul Stoffregen para XPT2046. La calibracion
-// de fabrica de estas placas chinas viene bastante consistente entre
-// unidades, pero si tu pantalla queda corrida un par de pixeles los
-// valores RAW_MIN/MAX de abajo son los que hay que tocar primero.
+// Wrapper de la libreria de Paul Stoffregen para XPT2046, para las
+// placas donde el touch tiene su propio bus VSPI separado del que usa
+// la pantalla (2432S028 y 2432S024). Si tu placa comparte el mismo
+// bus SPI entre pantalla y touch (caso 3248S035R), esta clase no es
+// la que corresponde: usa TouchResistiveSharedBus en su lugar.
 class TouchResistive : public TouchDriver {
 public:
-    TouchResistive() : ts(TOUCH_CS_PIN, TOUCH_IRQ_PIN) {}
+    TouchResistive()
+        : touchSPI(VSPI), ts(TOUCH_CS_PIN, TOUCH_IRQ_PIN) {}
 
     void begin() override {
-        ts.begin();
+        // Mapea el periferico VSPI a los pines fisicos del touch. Si
+        // en algun momento se toco la SD (que tambien vive en VSPI,
+        // ver el comentario largo en Board_2432S028.h), hay que
+        // volver a llamar esto para recuperar el mapeo antes de leer
+        // el touch de nuevo.
+        touchSPI.begin(TOUCH_SCLK_PIN, TOUCH_MISO_PIN, TOUCH_MOSI_PIN, TOUCH_CS_PIN);
+        ts.begin(touchSPI);
         ts.setRotation(rotationActual);
+    }
+
+    // Llamar despues de cualquier operacion de SD para recuperar el
+    // mapeo de pines del touch sobre el periferico VSPI compartido.
+    void reclaimBus() {
+        touchSPI.begin(TOUCH_SCLK_PIN, TOUCH_MISO_PIN, TOUCH_MOSI_PIN, TOUCH_CS_PIN);
     }
 
     void setRotation(uint8_t rotacion) {
@@ -39,10 +54,10 @@ public:
     }
 
 private:
+    SPIClass touchSPI;
     XPT2046_Touchscreen ts;
     uint8_t rotationActual = 0;
 
-    // Rango tipico de los modulos XPT2046 que traen las CYD de fabrica.
     static const int RAW_X_MIN = 200;
     static const int RAW_X_MAX = 3900;
     static const int RAW_Y_MIN = 200;

@@ -5,7 +5,9 @@
 #include "boards/BoardConfig.h"
 #include "TouchDriver.h"
 #if TOUCH_IS_CAPACITIVE
-    #error "Touch capacitivo todavia no tiene driver (fase 2)"
+    #include "TouchCapacitive.h"
+#elif TOUCH_SHARES_TFT_BUS
+    #include "TouchResistiveSharedBus.h"
 #else
     #include "TouchResistive.h"
 #endif
@@ -17,7 +19,14 @@
 #include "Learning.h"
 
 TFT_eSPI tft = TFT_eSPI();
-TouchResistive touchDriver;
+
+#if TOUCH_IS_CAPACITIVE
+    TouchCapacitive touchDriver;
+#elif TOUCH_SHARES_TFT_BUS
+    TouchResistiveSharedBus touchDriver(&tft);
+#else
+    TouchResistive touchDriver;
+#endif
 
 Mascota mascota;
 WiFiScanner scanner;
@@ -167,18 +176,24 @@ void dibujarPantallaWardrive() {
 
     tft.setCursor(10, 170);
     tft.print("Redes guardadas: ");
-    File f = SD.open("/wardriving.csv", FILE_READ);
     int lineas = 0;
-    if (f) {
-        while (f.available()) { if (f.read() == '\n') lineas++; }
-        f.close();
-        lineas -= 1;
+    if (SD.begin(SD_CS_PIN)) {
+        File f = SD.open("/wardriving.csv", FILE_READ);
+        if (f) {
+            while (f.available()) { if (f.read() == '\n') lineas++; }
+            f.close();
+            lineas -= 1;
+        }
     }
     tft.print(lineas > 0 ? lineas : 0);
 
     tft.setCursor(10, 200);
     tft.setTextColor(TFT_YELLOW);
     tft.print("[Toca para exportar KML]");
+
+    #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+        touchDriver.reclaimBus();
+    #endif
 }
 
 void dibujarPantallaConfig() {
@@ -206,8 +221,13 @@ void dibujarPantallaConfig() {
     tft.setTextColor(TFT_CYAN);
     tft.setCursor(10, 170);
     tft.print("SD: ");
-    tft.setTextColor(SD.begin(SD_CS_PIN) ? TFT_GREEN : TFT_RED);
-    tft.print(SD.begin(SD_CS_PIN) ? "OK" : "No detectada");
+    bool sdOk = SD.begin(SD_CS_PIN);
+    tft.setTextColor(sdOk ? TFT_GREEN : TFT_RED);
+    tft.print(sdOk ? "OK" : "No detectada");
+
+    #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+        touchDriver.reclaimBus();
+    #endif
 }
 
 void manejarToque(int x, int y) {
@@ -299,6 +319,15 @@ void loop() {
                     }
                 }
                 Serial.printf("Escaneo completado: %d redes\n", numRedes);
+
+                #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+                    // La SD y el touch comparten el periferico VSPI en
+                    // esta placa (ver el comentario en Board_2432S028.h).
+                    // Cada escritura a SD de arriba remapeo el bus hacia
+                    // sus propios pines, asi que hay que recuperarlo para
+                    // el touch antes de seguir escuchando toques.
+                    touchDriver.reclaimBus();
+                #endif
             }
             break;
 
