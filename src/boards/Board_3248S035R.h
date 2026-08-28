@@ -14,9 +14,12 @@
 
 #define TOUCH_IS_CAPACITIVE   0
 #define TOUCH_SHARES_TFT_BUS  1
-// TOUCH_CS_PIN se usa tambien desde el User_Setup.h de esta placa
-// (como TOUCH_CS de TFT_eSPI), tienen que coincidir siempre.
+// El touch usa el mismo bus fisico que la pantalla (mismos
+// MISO/MOSI/SCLK), asi que src/TouchResistiveSharedBus.h no abre un
+// SPIClass propio: toma el que ya inicializo TFT_eSPI via
+// tft.getSPIinstance() y solo agrega su propio CS/IRQ.
 #define TOUCH_CS_PIN    33
+#define TOUCH_IRQ_PIN   36
 
 #define TFT_BL_PIN   27
 
