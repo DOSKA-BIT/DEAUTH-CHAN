@@ -5,6 +5,14 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env:
+          - cyd-2432s028
+          - cyd-2432s024
+          - cyd-3248s035r
+          - cyd-3248s035c
 
     steps:
       - uses: actions/checkout@v4
@@ -20,18 +28,18 @@ jobs:
 
       - name: Build project
         run: |
-          pio run
+          pio run -e ${{ matrix.env }}
 
       - name: Prepare firmware files
         run: |
           mkdir -p firmware
 
-          cp .pio/build/esp32-cyd/firmware.bin firmware/firmware.bin
-          cp .pio/build/esp32-cyd/bootloader.bin firmware/bootloader.bin
-          cp .pio/build/esp32-cyd/partitions.bin firmware/partitions.bin
+          cp .pio/build/${{ matrix.env }}/firmware.bin firmware/firmware.bin
+          cp .pio/build/${{ matrix.env }}/bootloader.bin firmware/bootloader.bin
+          cp .pio/build/${{ matrix.env }}/partitions.bin firmware/partitions.bin
 
       - name: Upload firmware files
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-files
+          name: firmware-${{ matrix.env }}
           path: firmware/
