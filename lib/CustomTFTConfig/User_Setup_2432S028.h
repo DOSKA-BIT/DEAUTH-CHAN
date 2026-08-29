@@ -6,7 +6,7 @@
 // GC9A01) va a necesitar su propio User_Setup, seleccionado desde el
 // build_flags del environment correspondiente en platformio.ini.
 
-#define ILI9341_DRIVER
+#define ILI9341_2_DRIVER
 
 // Fuerza la pantalla al periferico HSPI en vez del VSPI que usa
 // TFT_eSPI por defecto. Sin esto, TFT_eSPI y cualquier otro
