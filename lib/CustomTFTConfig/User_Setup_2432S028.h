@@ -8,6 +8,18 @@
 
 #define ILI9341_2_DRIVER
 
+// Ademas del driver alternativo, esta placa necesita el orden de
+// color BGR en vez del RGB por defecto de TFT_eSPI - sin esto, varios
+// reportes de la comunidad (para este mismo modelo clonado) muestran
+// pantalla en blanco o colores completamente rotos.
+#define TFT_RGB_ORDER TFT_BGR
+
+// Si despues de esto la pantalla sigue en blanco o los colores se ven
+// invertidos (blanco por negro y viceversa), descomenta UNA de estas
+// dos lineas (probar primero ON, si empeora pasar a OFF):
+// #define TFT_INVERSION_ON
+// #define TFT_INVERSION_OFF
+
 // Fuerza la pantalla al periferico HSPI en vez del VSPI que usa
 // TFT_eSPI por defecto. Sin esto, TFT_eSPI y cualquier otro
 // dispositivo SPI (touch dedicado, SD) terminan peleando por el mismo
