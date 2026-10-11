@@ -17,7 +17,7 @@
 // Si despues de esto la pantalla sigue en blanco o los colores se ven
 // invertidos (blanco por negro y viceversa), descomenta UNA de estas
 // dos lineas (probar primero ON, si empeora pasar a OFF):
-// #define TFT_INVERSION_ON
+#define TFT_INVERSION_ON
 // #define TFT_INVERSION_OFF
 
 // Fuerza la pantalla al periferico HSPI en vez del VSPI que usa
