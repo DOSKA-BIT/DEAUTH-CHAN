@@ -17,7 +17,7 @@
 // Si despues de esto la pantalla sigue en blanco o los colores se ven
 // invertidos (blanco por negro y viceversa), descomenta UNA de estas
 // dos lineas (probar primero ON, si empeora pasar a OFF):
-#define TFT_INVERSION_ON
+//#define TFT_INVERSION_ON
 // #define TFT_INVERSION_OFF
 
 // Fuerza la pantalla al periferico HSPI en vez del VSPI que usa
@@ -25,7 +25,7 @@
 // dispositivo SPI (touch dedicado, SD) terminan peleando por el mismo
 // periferico VSPI aunque esten mapeados a pines fisicos distintos,
 // porque ambos son en el fondo el mismo controlador de hardware.
-#define USE_HSPI_PORT
+//#define USE_HSPI_PORT
 
 #define TFT_CS   15
 #define TFT_DC   2
