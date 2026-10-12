@@ -17,6 +17,8 @@ public:
 
     int getRedesNuevas() { return redesNuevas; }
     int getRedesEncontradas() { return redesEncontradas; }
+    uint8_t getFrameActual() const { return frameAnimacion; }
+    EstadoMascota getEstadoActual() const { return estadoActual; }
 
 private:
     TFT_eSPI* display;
