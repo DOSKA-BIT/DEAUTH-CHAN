@@ -25,7 +25,7 @@
 // dispositivo SPI (touch dedicado, SD) terminan peleando por el mismo
 // periferico VSPI aunque esten mapeados a pines fisicos distintos,
 // porque ambos son en el fondo el mismo controlador de hardware.
-//#define USE_HSPI_PORT
+#define USE_HSPI_PORT
 
 #define TFT_CS   15
 #define TFT_DC   2
