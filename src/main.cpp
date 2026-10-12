@@ -289,59 +289,79 @@ void loop() {
     gps.update();
     mascota.update();
 
-    mascota.dibujar();
-    dibujarMenuBotones();
+    if (pantallaActual == SCREEN_SCAN && escaneando && scanner.isScanDone()) {
+        scanner.getScanResults(redes, MAX_REDES_ESCANEO, numRedes);
+        mascota.setRedesEncontradas(numRedes);
+        escaneando = false;
+        mascota.setEstado(ESTADO_IDLE);
 
-    switch (pantallaActual) {
-        case SCREEN_MAIN:
-            tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
-            tft.setTextColor(TFT_WHITE);
-            tft.setCursor(20, 150);
-            tft.print("Bienvenido a bordo");
-            tft.setCursor(20, 175);
-            tft.print("Toca un boton de abajo");
-            break;
-
-        case SCREEN_SCAN:
-            dibujarListaRedes();
-            if (escaneando && scanner.isScanDone()) {
-                scanner.getScanResults(redes, MAX_REDES_ESCANEO, numRedes);
-                mascota.setRedesEncontradas(numRedes);
-                escaneando = false;
-                mascota.setEstado(ESTADO_IDLE);
-
-                GPSData pos = gps.getData();
-                for (int i = 0; i < numRedes; i++) {
-                    wardriver.saveNetwork(redes[i], pos);
-                    bool esNueva = aprendizaje.registrarAvistamiento(redes[i]);
-                    if (esNueva) {
-                        mascota.incrementarRedesNuevas();
-                    }
-                }
-                Serial.printf("Escaneo completado: %d redes\n", numRedes);
-
-                #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
-                    // La SD y el touch comparten el periferico VSPI en
-                    // esta placa (ver el comentario en Board_2432S028.h).
-                    // Cada escritura a SD de arriba remapeo el bus hacia
-                    // sus propios pines, asi que hay que recuperarlo para
-                    // el touch antes de seguir escuchando toques.
-                    touchDriver.reclaimBus();
-                #endif
+        GPSData pos = gps.getData();
+        for (int i = 0; i < numRedes; i++) {
+            wardriver.saveNetwork(redes[i], pos);
+            bool esNueva = aprendizaje.registrarAvistamiento(redes[i]);
+            if (esNueva) {
+                mascota.incrementarRedesNuevas();
             }
-            break;
+        }
+        Serial.printf("Escaneo completado: %d redes\n", numRedes);
 
-        case SCREEN_STATS:
-            dibujarPantallaStats();
-            break;
+        #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+            // La SD y el touch comparten el periferico VSPI en esta
+            // placa (ver el comentario largo en Board_2432S028.h). Cada
+            // escritura a SD de arriba remapea el bus hacia sus propios
+            // pines, asi que hay que recuperarlo para el touch antes de
+            // seguir escuchando toques.
+            touchDriver.reclaimBus();
+        #endif
+    }
 
-        case SCREEN_WARDRIVE:
-            dibujarPantallaWardrive();
-            break;
+    // La mascota se anima a su propio ritmo (ANIM_FRAME_MS) y el resto
+    // de cada pantalla es mayormente estatico, asi que solo redibujamos
+    // cuando cambio algo de verdad: la pantalla activa, el frame de
+    // animacion o el estado de la mascota. Redibujar todo en cada
+    // vuelta del loop (cada 10ms) es lo que hacia parpadear la pantalla.
+    static MenuScreen pantallaAnterior = (MenuScreen)-1;
+    static uint8_t frameMascotaAnterior = 255;
+    static EstadoMascota estadoMascotaAnterior = (EstadoMascota)-1;
 
-        case SCREEN_CONFIG:
-            dibujarPantallaConfig();
-            break;
+    bool hayCambios = (pantallaActual != pantallaAnterior) ||
+                       (mascota.getFrameActual() != frameMascotaAnterior) ||
+                       (mascota.getEstadoActual() != estadoMascotaAnterior);
+
+    if (hayCambios) {
+        mascota.dibujar();
+        dibujarMenuBotones();
+
+        switch (pantallaActual) {
+            case SCREEN_MAIN:
+                tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
+                tft.setTextColor(TFT_WHITE);
+                tft.setCursor(20, 150);
+                tft.print("Bienvenido a bordo");
+                tft.setCursor(20, 175);
+                tft.print("Toca un boton de abajo");
+                break;
+
+            case SCREEN_SCAN:
+                dibujarListaRedes();
+                break;
+
+            case SCREEN_STATS:
+                dibujarPantallaStats();
+                break;
+
+            case SCREEN_WARDRIVE:
+                dibujarPantallaWardrive();
+                break;
+
+            case SCREEN_CONFIG:
+                dibujarPantallaConfig();
+                break;
+        }
+
+        pantallaAnterior = pantallaActual;
+        frameMascotaAnterior = mascota.getFrameActual();
+        estadoMascotaAnterior = mascota.getEstadoActual();
     }
 
     TouchPoint toque = touchDriver.read();
