@@ -364,7 +364,7 @@ void loop() {
         estadoMascotaAnterior = mascota.getEstadoActual();
     }
 
-        TouchPoint toque = touchDriver.read();
+            TouchPoint toque = touchDriver.read();
     if (toque.pressed) {
         Serial.printf("Touch detectado: x=%d y=%d\n", toque.x, toque.y);
         if (toque.x >= TFT_PANEL_WIDTH / 3 && toque.y >= 100 && toque.y <= 100 + alturaListado()
@@ -373,7 +373,7 @@ void loop() {
         } else {
             manejarToque(toque.x, toque.y);
         }
-}
+    }
 
     delay(10);
 }
