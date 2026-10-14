@@ -13,9 +13,12 @@
 // la que corresponde: usa TouchResistiveSharedBus en su lugar.
 class TouchResistive : public TouchDriver {
 public:
-    TouchResistive()
-        : touchSPI(VSPI), ts(TOUCH_CS_PIN, TOUCH_IRQ_PIN) {}
-
+        TouchResistive()
+        // Sin el pin de IRQ: en algunos clones de esta placa ese pin
+        // viene mal cableado y deja la libreria pensando que hay un
+        // toque sostenido todo el tiempo. Leyendo siempre por SPI
+        // directo evitamos depender de el.
+        : touchSPI(VSPI), ts(TOUCH_CS_PIN) {}
     void begin() override {
         // Mapea el periferico VSPI a los pines fisicos del touch. Si
         // en algun momento se toco la SD (que tambien vive en VSPI,
