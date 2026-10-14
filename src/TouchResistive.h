@@ -41,20 +41,21 @@ public:
         ts.setRotation(rotacion);
     }
 
-    TouchPoint read() override {
+        TouchPoint read() override {
         TouchPoint p = {0, 0, false};
         if (!ts.touched()) {
             return p;
         }
 
         TS_Point raw = ts.getPoint();
+        Serial.printf("RAW touch: x=%d y=%d z=%d\n", raw.x, raw.y, raw.z);
         p.pressed = true;
         p.x = map(raw.x, RAW_X_MIN, RAW_X_MAX, 0, TFT_PANEL_WIDTH);
         p.y = map(raw.y, RAW_Y_MIN, RAW_Y_MAX, 0, TFT_PANEL_HEIGHT);
         p.x = constrain(p.x, 0, TFT_PANEL_WIDTH - 1);
         p.y = constrain(p.y, 0, TFT_PANEL_HEIGHT - 1);
         return p;
-    }
+}
 
 private:
     SPIClass touchSPI;
