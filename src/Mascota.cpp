@@ -10,6 +10,8 @@ Mascota::Mascota() {
     redesEncontradas = 0;
     spriteX = 0;
     spriteY = 120;
+    estadoFirmaAnterior = ESTADO_COUNT; // valor invalido a proposito, para forzar el primer redibujado
+    firmaAnterior = 255;
 }
 
 void Mascota::init(TFT_eSPI* tft) {
@@ -223,4 +225,35 @@ void Mascota::tocar(int tx, int ty) {
     if (tx >= spriteX && tx <= spriteX + 64 && ty >= spriteY && ty <= spriteY + 64) {
         setEstado(ESTADO_HAPPY);
     }
+}
+
+uint8_t Mascota::firmaVisual() const {
+    switch (estadoActual) {
+        case ESTADO_IDLE:
+            // En reposo lo unico que cambia en pantalla es el parpadeo
+            // de los ojos, y eso pasa cada 8 ticks de animacion, no en
+            // cada tick - por eso la firma solo tiene 2 valores posibles
+            // en vez de seguir el frameAnimacion crudo.
+            return (frameAnimacion % 8 < 2) ? 1 : 0;
+        case ESTADO_SCANNING:
+            // Ahi la antena gira en cada tick, asi que redibujamos en
+            // cada tick tambien (es la animacion, no un error).
+            return frameAnimacion % 4;
+        case ESTADO_SLEEP:
+            return frameAnimacion % 16;
+        default:
+            // HAPPY y CURIOSA no dependen del frame, solo cambian al
+            // entrar o salir del estado.
+            return 0;
+    }
+}
+
+bool Mascota::necesitaRedibujar() {
+    uint8_t firma = firmaVisual();
+    if (estadoActual != estadoFirmaAnterior || firma != firmaAnterior) {
+        estadoFirmaAnterior = estadoActual;
+        firmaAnterior = firma;
+        return true;
+    }
+    return false;
 }
