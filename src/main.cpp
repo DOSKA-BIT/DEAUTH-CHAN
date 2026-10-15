@@ -325,20 +325,16 @@ void loop() {
         #endif
     }
 
-    // La mascota se anima a su propio ritmo (ANIM_FRAME_MS) y el resto
-    // de cada pantalla es mayormente estatico, asi que solo redibujamos
-    // cuando cambio algo de verdad: la pantalla activa, el frame de
-    // animacion o el estado de la mascota. Redibujar todo en cada
-    // vuelta del loop (cada 10ms) es lo que hacia parpadear la pantalla.
+    // La mascota ya sabe cuando su dibujo cambia de verdad (el parpadeo
+    // de ojos, la antena girando, etc.), asi que nos apoyamos en eso en
+    // vez de redibujar todo en cada vuelta del loop (cada 10ms), que
+    // era lo que hacia parpadear la pantalla sin necesidad.
     static MenuScreen pantallaAnterior = (MenuScreen)-1;
-    static uint8_t frameMascotaAnterior = 255;
-    static EstadoMascota estadoMascotaAnterior = (EstadoMascota)-1;
 
-    bool hayCambios = (pantallaActual != pantallaAnterior) ||
-                       (mascota.getFrameActual() != frameMascotaAnterior) ||
-                       (mascota.getEstadoActual() != estadoMascotaAnterior);
+    bool cambioPantalla = (pantallaActual != pantallaAnterior);
+    bool cambioMascota = mascota.necesitaRedibujar();
 
-    if (hayCambios) {
+    if (cambioPantalla || cambioMascota) {
         mascota.dibujar();
         dibujarMenuBotones();
 
@@ -370,8 +366,6 @@ void loop() {
         }
 
         pantallaAnterior = pantallaActual;
-        frameMascotaAnterior = mascota.getFrameActual();
-        estadoMascotaAnterior = mascota.getEstadoActual();
     }
 
     TouchPoint toque = touchDriver.read();
