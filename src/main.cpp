@@ -282,6 +282,16 @@ void setup() {
     wardriver.begin();
     aprendizaje.begin();
 
+    #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+        // pcap.begin(), wardriver.begin() y aprendizaje.begin() tocan la
+        // SD, que comparte el periferico VSPI con el touch en esta
+        // placa (ver el comentario largo en Board_2432S028.h). Eso deja
+        // el bus apuntando a los pines de la SD en vez de los del
+        // touch, asi que hay que reclamarlo antes de que arranque el
+        // loop() o el touch queda leyendo basura desde el primer toque.
+        touchDriver.reclaimBus();
+    #endif
+
     Serial.println("Setup completado");
 }
 
@@ -364,9 +374,8 @@ void loop() {
         estadoMascotaAnterior = mascota.getEstadoActual();
     }
 
-            TouchPoint toque = touchDriver.read();
+    TouchPoint toque = touchDriver.read();
     if (toque.pressed) {
-        Serial.printf("Touch detectado: x=%d y=%d\n", toque.x, toque.y);
         if (toque.x >= TFT_PANEL_WIDTH / 3 && toque.y >= 100 && toque.y <= 100 + alturaListado()
             && pantallaActual == SCREEN_MAIN) {
             mascota.tocar(toque.x, toque.y);
