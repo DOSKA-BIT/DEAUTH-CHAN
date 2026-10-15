@@ -17,8 +17,13 @@ public:
 
     int getRedesNuevas() { return redesNuevas; }
     int getRedesEncontradas() { return redesEncontradas; }
-    uint8_t getFrameActual() const { return frameAnimacion; }
-    EstadoMascota getEstadoActual() const { return estadoActual; }
+
+    // Dice si hay que volver a dibujar la mascota: no cada vez que pasa
+    // un tick de animacion, sino solo cuando lo que se ve en pantalla
+    // cambiaria de verdad. Guarda internamente la ultima "firma visual"
+    // para comparar, asi que hay que llamarlo una sola vez por vuelta
+    // del loop (no sirve para consultar sin consumir el cambio).
+    bool necesitaRedibujar();
 
 private:
     TFT_eSPI* display;
@@ -29,6 +34,10 @@ private:
     uint8_t frameAnimacion;
     int redesNuevas;
     int redesEncontradas;
+
+    EstadoMascota estadoFirmaAnterior;
+    uint8_t firmaAnterior;
+    uint8_t firmaVisual() const;
 
     // El sprite se dibuja centrado sobre un cuadrado fijo de 64x64, pero
     // la posicion de ese cuadrado depende del ancho real de la pantalla
