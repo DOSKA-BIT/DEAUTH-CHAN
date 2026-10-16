@@ -2,6 +2,7 @@
 #include "boards/BoardConfig.h"
 
 bool PCAPWriter::begin(const char* filename) {
+    SD.end();
     if (!SD.begin(SD_CS_PIN)) {
         Serial.println("No se pudo montar la SD");
         return false;
