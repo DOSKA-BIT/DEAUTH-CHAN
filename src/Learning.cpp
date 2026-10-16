@@ -60,6 +60,7 @@ RedStats* Learning::buscar(const uint8_t* bssid) {
 }
 
 void Learning::guardarEnSD() {
+    SD.end();
     if (!SD.begin(SD_CS_PIN)) return;
     File file = SD.open("/redes_conocidas.bin", FILE_WRITE);
     if (file) {
@@ -70,6 +71,7 @@ void Learning::guardarEnSD() {
 }
 
 void Learning::cargarDesdeSD() {
+    SD.end();
     if (!SD.begin(SD_CS_PIN)) {
         numStats = 0;
         return;
