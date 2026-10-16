@@ -39,6 +39,13 @@ RedInfo redes[MAX_REDES_ESCANEO];
 int numRedes = 0;
 bool escaneando = false;
 
+// Avisa que el contenido de la pantalla activa (lista, stats,
+// wardriving, config) quedo desactualizado y hay que redibujarlo.
+// Antes esto se disparaba con cada parpadeo de la mascota sin
+// importar que pantalla estuviera activa; ahora solo se prende
+// cuando de verdad cambio algo que vale la pena mostrar.
+bool contenidoSucio = true;
+
 enum MenuScreen {
     SCREEN_MAIN,
     SCREEN_SCAN,
@@ -116,7 +123,11 @@ void dibujarListaRedes() {
         yOffset += 20;
     }
 
-    if (numRedes == 0 && !escaneando) {
+    if (escaneando) {
+        tft.setTextColor(TFT_YELLOW);
+        tft.setCursor(10, 130);
+        tft.print("Escaneando...");
+    } else if (numRedes == 0) {
         tft.setTextColor(TFT_DARKGREY);
         tft.setCursor(10, 130);
         tft.print("Toca aca para escanear");
@@ -247,6 +258,7 @@ void manejarToque(int x, int y) {
                 mascota.setEstado(ESTADO_SCANNING);
                 scanner.startScan();
                 escaneando = true;
+                contenidoSucio = true; // para que se vea "Escaneando..." ya mismo
             }
             break;
         case SCREEN_WARDRIVE:
@@ -325,50 +337,63 @@ void loop() {
             // seguir escuchando toques.
             touchDriver.reclaimBus();
         #endif
+
+        contenidoSucio = true; // hay resultados nuevos para mostrar en la lista
     }
 
-    // La mascota ya sabe cuando su dibujo cambia de verdad (el parpadeo
-    // de ojos, la antena girando, etc.), asi que nos apoyamos en eso en
-    // vez de redibujar todo en cada vuelta del loop (cada 10ms), que
-    // era lo que hacia parpadear la pantalla sin necesidad.
     static MenuScreen pantallaAnterior = (MenuScreen)-1;
-
     bool cambioPantalla = (pantallaActual != pantallaAnterior);
-    bool cambioMascota = mascota.necesitaRedibujar();
+    if (cambioPantalla) {
+        contenidoSucio = true;
+    }
 
-    if (cambioPantalla || cambioMascota) {
-        mascota.dibujar();
+    // La mascota se dibuja en la misma franja central que usan las
+    // demas pantallas para su contenido (lista de redes, stats,
+    // wardriving, config): no son dos capas separadas, es el mismo
+    // pedazo de pantalla. Por eso antes, cuando a la mascota le tocaba
+    // parpadear, se volvia a disparar TODO el bloque de abajo sin
+    // importar en que pantalla estuvieramos - y en Wardrive/Config eso
+    // significaba remontar la SD en cada parpadeo (de ahi la lentitud
+    // y el parpadeo en esas pantallas, no solo en la principal). Ahora
+    // la mascota solo se dibuja a si misma, y solo mientras estamos
+    // parados en la pantalla principal; el resto de las pantallas se
+    // redibuja una sola vez, cuando entras a ellas o cuando cambia
+    // algo que de verdad hay que mostrar (como un escaneo terminado).
+    bool enPantallaPrincipal = (pantallaActual == SCREEN_MAIN);
+    bool mascotaCambio = mascota.necesitaRedibujar();
+
+    if (cambioPantalla) {
         dibujarMenuBotones();
+    }
 
+    if (enPantallaPrincipal) {
+        // Esta pantalla ES la mascota, no hay texto de bienvenida
+        // compitiendo por el mismo espacio: antes se dibujaban los
+        // dos en la misma franja, uno tapando al otro.
+        if (cambioPantalla || mascotaCambio) {
+            mascota.dibujar();
+        }
+    } else if (contenidoSucio) {
         switch (pantallaActual) {
-            case SCREEN_MAIN:
-                tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
-                tft.setTextColor(TFT_WHITE);
-                tft.setCursor(20, 150);
-                tft.print("Bienvenido a bordo");
-                tft.setCursor(20, 175);
-                tft.print("Toca un boton de abajo");
-                break;
-
             case SCREEN_SCAN:
                 dibujarListaRedes();
                 break;
-
             case SCREEN_STATS:
                 dibujarPantallaStats();
                 break;
-
             case SCREEN_WARDRIVE:
                 dibujarPantallaWardrive();
                 break;
-
             case SCREEN_CONFIG:
                 dibujarPantallaConfig();
                 break;
+            default:
+                break;
         }
-
-        pantallaAnterior = pantallaActual;
     }
+
+    contenidoSucio = false;
+    pantallaAnterior = pantallaActual;
 
     TouchPoint toque = touchDriver.read();
     if (toque.pressed) {
