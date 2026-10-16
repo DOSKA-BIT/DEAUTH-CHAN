@@ -33,7 +33,8 @@ public:
     // Llamar despues de cualquier operacion de SD para recuperar el
     // mapeo de pines del touch sobre el periferico VSPI compartido.
     void reclaimBus() {
-        touchSPI.begin(TOUCH_SCLK_PIN, TOUCH_MISO_PIN, TOUCH_MOSI_PIN, TOUCH_CS_PIN);
+    touchSPI.end();
+    touchSPI.begin(TOUCH_SCLK_PIN, TOUCH_MISO_PIN, TOUCH_MOSI_PIN, TOUCH_CS_PIN);
     }
 
     void setRotation(uint8_t rotacion) {
