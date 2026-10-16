@@ -17,6 +17,7 @@
 #include "GPSModule.h"
 #include "Wardriving.h"
 #include "Learning.h"
+#include "Theme.h"
 
 TFT_eSPI tft = TFT_eSPI();
 
@@ -69,7 +70,7 @@ const char* NOMBRES_MENU[4] = {"Escanear", "Stats", "Wardrive", "Config"};
 
 void calcularLayoutMenu() {
     int anchoBoton = TFT_PANEL_WIDTH / 4;
-    int y = TFT_PANEL_HEIGHT - 40;
+    int y = TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT;
     for (int i = 0; i < 4; i++) {
         menuBotones[i].x = i * anchoBoton;
         menuBotones[i].y = y;
@@ -80,29 +81,53 @@ void calcularLayoutMenu() {
 }
 
 void dibujarMenuBotones() {
+    // Linea fina arriba de la barra, para separarla del contenido en
+    // vez de que los botones queden flotando sin mas.
+    tft.drawFastHLine(0, TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT - 1, TFT_PANEL_WIDTH, COLOR_ACCENT_DIM);
+
     for (int i = 0; i < 4; i++) {
         // i+1 porque SCREEN_MAIN no tiene boton propio, el indice del
         // menu arranca en SCREEN_SCAN
         bool activo = ((int)pantallaActual == i + 1);
-        uint16_t color = activo ? TFT_GREEN : TFT_DARKGREY;
-        tft.fillRoundRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, 4, color);
-        tft.drawRoundRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, 4, TFT_WHITE);
-        tft.setTextColor(TFT_WHITE);
+        uint16_t colorFondo = activo ? COLOR_ACCENT : COLOR_PANEL;
+        uint16_t colorTexto = activo ? COLOR_BG : COLOR_TEXT_DIM;
+        tft.fillRoundRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, 6, colorFondo);
+        if (!activo) {
+            tft.drawRoundRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, 6, COLOR_ACCENT_DIM);
+        }
+        tft.setTextColor(colorTexto, colorFondo);
+        tft.setTextFont(1);
         tft.setTextSize(1);
-        tft.setCursor(menuBotones[i].x + 4, menuBotones[i].y + 12);
+        int anchoTexto = strlen(menuBotones[i].label) * 6;
+        int xCentrado = menuBotones[i].x + (menuBotones[i].w - anchoTexto) / 2;
+        tft.setCursor(xCentrado, menuBotones[i].y + 13);
         tft.print(menuBotones[i].label);
     }
 }
 
 int alturaListado() {
-    // Deja lugar para la cabecera de la mascota arriba y la barra de
-    // menu abajo, el resto es zona util para listas de texto.
-    return TFT_PANEL_HEIGHT - 40 - 100;
+    // Lo que queda del alto de pantalla descontando la franja de
+    // arriba (donde va el resumen de la mascota) y la barra de botones
+    // de abajo. Es la zona util para listas, stats, etc en cada
+    // pantalla que no sea la principal.
+    return TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT - CONTENT_TOP;
 }
 
 void dibujarListaRedes() {
-    tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
-    int yOffset = 110;
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+
+    // Mientras hay un escaneo en curso no tiene sentido mostrar la
+    // lista vieja por debajo del cartel de "Escaneando...": antes se
+    // superponian (la lista anterior se quedaba dibujada y el cartel
+    // le caia encima a mitad de camino). Se ve una cosa o la otra.
+    if (escaneando) {
+        tft.setTextColor(COLOR_WARN, COLOR_BG);
+        tft.setCursor(10, CONTENT_TOP + 20);
+        tft.print("Escaneando...");
+        return;
+    }
+
+    int yOffset = CONTENT_TOP + 10;
     int maxVisibles = alturaListado() / 20;
 
     for (int i = 0; i < numRedes && i < maxVisibles; i++) {
@@ -112,56 +137,55 @@ void dibujarListaRedes() {
         } else {
             sprintf(buf, "%d.%s", i + 1, redes[i].ssid);
         }
-        tft.setTextColor(redes[i].tieneClave ? TFT_YELLOW : TFT_RED);
+        tft.setTextColor(redes[i].tieneClave ? COLOR_TEXT : COLOR_WARN, COLOR_BG);
         tft.setCursor(5, yOffset);
         tft.print(buf);
 
-        tft.setTextColor(TFT_WHITE);
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(TFT_PANEL_WIDTH - 70, yOffset);
         tft.print(redes[i].rssi);
         tft.print("dBm");
         yOffset += 20;
     }
 
-    if (escaneando) {
-        tft.setTextColor(TFT_YELLOW);
-        tft.setCursor(10, 130);
-        tft.print("Escaneando...");
-    } else if (numRedes == 0) {
-        tft.setTextColor(TFT_DARKGREY);
-        tft.setCursor(10, 130);
+    if (numRedes == 0) {
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(10, CONTENT_TOP + 20);
         tft.print("Toca aca para escanear");
     }
 }
 
 void dibujarPantallaStats() {
-    tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
-    tft.setTextColor(TFT_CYAN);
-    tft.setCursor(10, 110);
-    tft.print("MEMORIA DE REDES");
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
+    tft.setTextFont(2);
+    tft.setCursor(10, CONTENT_TOP + 6);
+    tft.print("Memoria de redes");
+    tft.setTextFont(1);
+    tft.drawFastHLine(10, CONTENT_TOP + 24, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
 
-    tft.setTextColor(TFT_WHITE);
-    tft.setCursor(10, 135);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.setCursor(10, CONTENT_TOP + 35);
     tft.print("Redes conocidas: ");
     tft.print(aprendizaje.getTotalRedesConocidas());
 
-    tft.setCursor(10, 155);
+    tft.setCursor(10, CONTENT_TOP + 55);
     tft.print("Vistas este escaneo: ");
     tft.print(numRedes);
 
-    tft.setCursor(10, 175);
+    tft.setCursor(10, CONTENT_TOP + 75);
     tft.print("Nuevas descubiertas: ");
     tft.print(mascota.getRedesNuevas());
 
     if (numRedes > 0) {
         RedStats* s = aprendizaje.getStats(redes[0].bssid);
         if (s) {
-            tft.setCursor(10, 205);
-            tft.setTextColor(TFT_YELLOW);
+            tft.setCursor(10, CONTENT_TOP + 105);
+            tft.setTextColor(COLOR_WARN, COLOR_BG);
             tft.print("Ultima red top: ");
             tft.print(s->ssid);
-            tft.setCursor(10, 225);
-            tft.setTextColor(TFT_WHITE);
+            tft.setCursor(10, CONTENT_TOP + 125);
+            tft.setTextColor(COLOR_TEXT, COLOR_BG);
             tft.print("Vista ");
             tft.print(s->vecesVista);
             tft.print(" veces");
@@ -170,22 +194,27 @@ void dibujarPantallaStats() {
 }
 
 void dibujarPantallaWardrive() {
-    tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
-    tft.setTextColor(TFT_ORANGE);
-    tft.setCursor(10, 110);
-    tft.print("WARDRIVING");
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
+    tft.setTextFont(2);
+    tft.setCursor(10, CONTENT_TOP + 6);
+    tft.print("Wardriving");
+    tft.setTextFont(1);
+    tft.drawFastHLine(10, CONTENT_TOP + 24, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
 
-    tft.setTextColor(TFT_WHITE);
-    tft.setCursor(10, 130);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.setCursor(10, CONTENT_TOP + 35);
     tft.print("GPS: ");
     GPSData pos = gps.getData();
+    tft.setTextColor(pos.valid ? COLOR_ACCENT : COLOR_WARN, COLOR_BG);
     tft.print(pos.valid ? "FIX" : "SIN FIX");
 
-    tft.setCursor(10, 150);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.setCursor(10, CONTENT_TOP + 55);
     tft.print("Satelites: ");
     tft.print(pos.satellites);
 
-    tft.setCursor(10, 170);
+    tft.setCursor(10, CONTENT_TOP + 75);
     tft.print("Redes guardadas: ");
     int lineas = 0;
     SD.end();
@@ -199,8 +228,8 @@ void dibujarPantallaWardrive() {
     }
     tft.print(lineas > 0 ? lineas : 0);
 
-    tft.setCursor(10, 200);
-    tft.setTextColor(TFT_YELLOW);
+    tft.setCursor(10, CONTENT_TOP + 105);
+    tft.setTextColor(COLOR_WARN, COLOR_BG);
     tft.print("[Toca para exportar KML]");
 
     #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
@@ -209,33 +238,40 @@ void dibujarPantallaWardrive() {
 }
 
 void dibujarPantallaConfig() {
-    tft.fillRect(0, 100, TFT_PANEL_WIDTH, alturaListado(), TFT_BLACK);
-    tft.setTextColor(TFT_CYAN);
-    tft.setCursor(10, 110);
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
+    tft.setTextFont(2);
+    tft.setCursor(10, CONTENT_TOP + 6);
+    tft.print("Config");
+    tft.setTextFont(1);
+    tft.drawFastHLine(10, CONTENT_TOP + 24, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
+
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(10, CONTENT_TOP + 35);
     tft.print("Placa: ");
-    tft.setTextColor(TFT_WHITE);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.print(BOARD_NAME);
 
-    tft.setTextColor(TFT_CYAN);
-    tft.setCursor(10, 130);
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(10, CONTENT_TOP + 55);
     tft.print("Pantalla: ");
-    tft.setTextColor(TFT_WHITE);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.print(TFT_PANEL_WIDTH);
     tft.print("x");
     tft.print(TFT_PANEL_HEIGHT);
 
-    tft.setTextColor(TFT_CYAN);
-    tft.setCursor(10, 150);
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(10, CONTENT_TOP + 75);
     tft.print("Touch: ");
-    tft.setTextColor(TFT_WHITE);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.print(TOUCH_IS_CAPACITIVE ? "Capacitivo" : "Resistivo");
 
-    tft.setTextColor(TFT_CYAN);
-    tft.setCursor(10, 170);
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(10, CONTENT_TOP + 95);
     tft.print("SD: ");
     SD.end();
     bool sdOk = SD.begin(SD_CS_PIN);
-    tft.setTextColor(sdOk ? TFT_GREEN : TFT_RED);
+    tft.setTextColor(sdOk ? COLOR_ACCENT : COLOR_DANGER, COLOR_BG);
     tft.print(sdOk ? "OK" : "No detectada");
 
     #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
@@ -254,7 +290,7 @@ void manejarToque(int x, int y) {
 
     switch (pantallaActual) {
         case SCREEN_SCAN:
-            if (y > 100 && y < 100 + alturaListado() && !escaneando) {
+            if (y > CONTENT_TOP && y < CONTENT_TOP + alturaListado() && !escaneando) {
                 mascota.setEstado(ESTADO_SCANNING);
                 scanner.startScan();
                 escaneando = true;
@@ -262,7 +298,7 @@ void manejarToque(int x, int y) {
             }
             break;
         case SCREEN_WARDRIVE:
-            if (y > 195 && y < 220) {
+            if (y > CONTENT_TOP + 95 && y < CONTENT_TOP + 120) {
                 wardriver.exportKML();
             }
             break;
@@ -281,7 +317,7 @@ void setup() {
 
     tft.init();
     tft.setRotation(0);
-    tft.fillScreen(TFT_BLACK);
+    tft.fillScreen(COLOR_BG);
 
     touchDriver.begin();
     calcularLayoutMenu();
@@ -373,22 +409,32 @@ void loop() {
         if (cambioPantalla || mascotaCambio) {
             mascota.dibujar();
         }
-    } else if (contenidoSucio) {
-        switch (pantallaActual) {
-            case SCREEN_SCAN:
-                dibujarListaRedes();
-                break;
-            case SCREEN_STATS:
-                dibujarPantallaStats();
-                break;
-            case SCREEN_WARDRIVE:
-                dibujarPantallaWardrive();
-                break;
-            case SCREEN_CONFIG:
-                dibujarPantallaConfig();
-                break;
-            default:
-                break;
+    } else {
+        // En el resto de las pantallas la mascota no tiene su cara
+        // grande (ese lugar lo usa el contenido de la pantalla), pero
+        // la franja de arriba con su estado se mantiene igual en
+        // todos lados para no perderle la pista mientras mirás otra
+        // cosa.
+        if (cambioPantalla || mascotaCambio) {
+            mascota.dibujarEncabezado();
+        }
+        if (contenidoSucio) {
+            switch (pantallaActual) {
+                case SCREEN_SCAN:
+                    dibujarListaRedes();
+                    break;
+                case SCREEN_STATS:
+                    dibujarPantallaStats();
+                    break;
+                case SCREEN_WARDRIVE:
+                    dibujarPantallaWardrive();
+                    break;
+                case SCREEN_CONFIG:
+                    dibujarPantallaConfig();
+                    break;
+                default:
+                    break;
+            }
         }
     }
 
@@ -397,7 +443,7 @@ void loop() {
 
     TouchPoint toque = touchDriver.read();
     if (toque.pressed) {
-        if (toque.x >= TFT_PANEL_WIDTH / 3 && toque.y >= 100 && toque.y <= 100 + alturaListado()
+        if (toque.x >= TFT_PANEL_WIDTH / 3 && toque.y >= CONTENT_TOP && toque.y <= CONTENT_TOP + alturaListado()
             && pantallaActual == SCREEN_MAIN) {
             mascota.tocar(toque.x, toque.y);
         } else {
