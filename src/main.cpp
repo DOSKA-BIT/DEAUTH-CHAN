@@ -177,6 +177,7 @@ void dibujarPantallaWardrive() {
     tft.setCursor(10, 170);
     tft.print("Redes guardadas: ");
     int lineas = 0;
+    SD.end();
     if (SD.begin(SD_CS_PIN)) {
         File f = SD.open("/wardriving.csv", FILE_READ);
         if (f) {
@@ -221,6 +222,7 @@ void dibujarPantallaConfig() {
     tft.setTextColor(TFT_CYAN);
     tft.setCursor(10, 170);
     tft.print("SD: ");
+    SD.end();
     bool sdOk = SD.begin(SD_CS_PIN);
     tft.setTextColor(sdOk ? TFT_GREEN : TFT_RED);
     tft.print(sdOk ? "OK" : "No detectada");
