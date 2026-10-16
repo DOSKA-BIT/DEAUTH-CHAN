@@ -7,6 +7,15 @@
 #define ANIM_FRAME_MS   200
 #define SCAN_INTERVAL   5000
 
+// Medidas del "marco" de la interfaz: la franja de arriba (donde va
+// el estado de la mascota) y la barra de botones de abajo. Todo lo
+// demas - las listas, los stats, etc - usa el espacio que queda en
+// el medio. Estan fijas en un solo lugar porque las necesitan
+// tanto main.cpp (para saber donde arrancar a dibujar cada pantalla)
+// como Mascota.cpp (para saber cuanto espacio tiene para su cara).
+#define CONTENT_TOP      36
+#define MENU_BAR_HEIGHT  40
+
 // Cuantas redes distintas podemos tener en memoria en un mismo escaneo.
 // El ESP32 normalmente devuelve entre 10 y 40 en un entorno urbano, con
 // 20 alcanza para no comerse RAM de mas en placas con poco heap libre.
