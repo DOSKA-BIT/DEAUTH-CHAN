@@ -2,6 +2,7 @@
 #include "boards/BoardConfig.h"
 
 void Wardriving::begin() {
+    SD.end();
     if (!SD.begin(SD_CS_PIN)) {
         Serial.println("SD no disponible para wardriving");
         return;
