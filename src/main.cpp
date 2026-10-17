@@ -49,10 +49,12 @@ bool contenidoSucio = true;
 
 enum MenuScreen {
     SCREEN_MAIN,
+    SCREEN_TOOLS,
     SCREEN_SCAN,
     SCREEN_STATS,
     SCREEN_WARDRIVE,
-    SCREEN_CONFIG
+    SCREEN_CONFIG,
+    SCREEN_CONOCIDAS
 };
 MenuScreen pantallaActual = SCREEN_MAIN;
 
@@ -61,22 +63,61 @@ struct Boton {
     const char* label;
 };
 
-// El ancho de cada boton se calcula en runtime a partir de
-// TFT_PANEL_WIDTH asi que la barra de menu ocupa todo el ancho de la
-// pantalla sin importar si son 240px o 480px.
-Boton menuBotones[4];
-
-const char* NOMBRES_MENU[4] = {"Escanear", "Stats", "Wardrive", "Config"};
+// Solo dos botones fijos abajo: uno para volver a la mascota y otro
+// para la lista de herramientas. Antes habia un boton por pantalla
+// (Escanear/Stats/Wardrive/Config) pero ninguno volvia a la pantalla
+// principal, asi que una vez que entrabas a cualquiera de esas la
+// mascota quedaba inalcanzable hasta reiniciar el ESP. Con esto la
+// mascota siempre esta a un toque de distancia, y agregar una
+// herramienta nueva el dia de manana es sumar una fila en la lista,
+// no pelear por lugar en la barra de abajo.
+Boton menuBotones[2];
 
 void calcularLayoutMenu() {
-    int anchoBoton = TFT_PANEL_WIDTH / 4;
+    int anchoBoton = TFT_PANEL_WIDTH / 2;
     int y = TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT;
-    for (int i = 0; i < 4; i++) {
-        menuBotones[i].x = i * anchoBoton;
-        menuBotones[i].y = y;
-        menuBotones[i].w = anchoBoton - 2;
-        menuBotones[i].h = 34;
-        menuBotones[i].label = NOMBRES_MENU[i];
+
+    menuBotones[0] = {0, y, anchoBoton - 2, 34, "Mascota"};
+    menuBotones[1] = {anchoBoton, y, anchoBoton - 2, 34, "Herramientas"};
+}
+
+// Una fila por herramienta en la pantalla de Herramientas: nombre,
+// descripcion corta y a que pantalla lleva al tocarla. Agregar una
+// herramienta nueva es agregar una linea aca (y su pantalla propia),
+// nada mas - no hay que tocar la barra de botones para nada.
+struct Herramienta {
+    const char* nombre;
+    const char* descripcion;
+    MenuScreen destino;
+    int y, h; // se calculan en calcularLayoutHerramientas()
+};
+
+Herramienta herramientas[] = {
+    {"Escanear", "Buscar redes WiFi cerca",         SCREEN_SCAN,     0, 0},
+    {"Stats",    "Memoria de redes ya vistas",       SCREEN_STATS,    0, 0},
+    {"Wardrive", "Guardar ubicacion + redes en SD",  SCREEN_WARDRIVE, 0, 0},
+    {"Config",   "Datos de la placa y la SD",        SCREEN_CONFIG,   0, 0},
+    {"Conocidas", "Redes guardadas, por senial",     SCREEN_CONOCIDAS, 0, 0},
+};
+const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0]);
+
+int alturaListado(); // definida mas abajo, hace falta antes aca
+
+void calcularLayoutHerramientas() {
+    // El alto de cada fila se calcula segun cuantas herramientas haya
+    // para que entren todas sin superponerse, en vez de tener un
+    // numero fijo que se rompe el dia que se agrega una quinta o
+    // sexta herramienta (como paso al sumar "Conocidas").
+    int espacioDisponible = alturaListado() - 12;
+    int gap = 4;
+    int alto = (espacioDisponible - gap * (CANTIDAD_HERRAMIENTAS - 1)) / CANTIDAD_HERRAMIENTAS;
+    if (alto > 50) alto = 50; // no hace falta que crezcan de mas si hay pocas
+
+    int y = CONTENT_TOP + 8;
+    for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
+        herramientas[i].y = y;
+        herramientas[i].h = alto;
+        y += alto + gap;
     }
 }
 
@@ -85,10 +126,12 @@ void dibujarMenuBotones() {
     // vez de que los botones queden flotando sin mas.
     tft.drawFastHLine(0, TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT - 1, TFT_PANEL_WIDTH, COLOR_ACCENT_DIM);
 
-    for (int i = 0; i < 4; i++) {
-        // i+1 porque SCREEN_MAIN no tiene boton propio, el indice del
-        // menu arranca en SCREEN_SCAN
-        bool activo = ((int)pantallaActual == i + 1);
+    for (int i = 0; i < 2; i++) {
+        // El boton de Mascota se marca activo solo en la pantalla
+        // principal; el de Herramientas se marca activo en cualquier
+        // otra pantalla (la lista de herramientas y cada herramienta
+        // en si), total todas esas viven del lado de "herramientas".
+        bool activo = (i == 0) ? (pantallaActual == SCREEN_MAIN) : (pantallaActual != SCREEN_MAIN);
         uint16_t colorFondo = activo ? COLOR_ACCENT : COLOR_PANEL;
         uint16_t colorTexto = activo ? COLOR_BG : COLOR_TEXT_DIM;
         tft.fillRoundRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, 6, colorFondo);
@@ -111,6 +154,97 @@ int alturaListado() {
     // de abajo. Es la zona util para listas, stats, etc en cada
     // pantalla que no sea la principal.
     return TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT - CONTENT_TOP;
+}
+
+void dibujarPantallaHerramientas() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+
+    for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
+        Herramienta& h = herramientas[i];
+        tft.fillRoundRect(8, h.y, TFT_PANEL_WIDTH - 16, h.h, 8, COLOR_PANEL);
+        tft.drawRoundRect(8, h.y, TFT_PANEL_WIDTH - 16, h.h, 8, COLOR_ACCENT_DIM);
+
+        tft.setTextColor(COLOR_TEXT, COLOR_PANEL);
+        tft.setTextFont(2);
+        tft.setCursor(18, h.y + 6);
+        tft.print(h.nombre);
+        tft.setTextFont(1);
+
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_PANEL);
+        tft.setCursor(18, h.y + 28);
+        tft.print(h.descripcion);
+    }
+
+    // Espacio de sobra abajo de la lista para cuando se agreguen mas
+    // herramientas - por ahora solo un cartelito avisando que hay
+    // lugar, para que no quede una franja vacia sin explicacion.
+    if (CANTIDAD_HERRAMIENTAS > 0) {
+        int yHint = herramientas[CANTIDAD_HERRAMIENTAS - 1].y + herramientas[CANTIDAD_HERRAMIENTAS - 1].h + 10;
+        if (yHint < CONTENT_TOP + alturaListado() - 10) {
+            tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+            tft.setCursor(14, yHint);
+            tft.print("+ mas herramientas pronto");
+        }
+    }
+}
+
+void dibujarPantallaConocidas() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+
+    int total = aprendizaje.getTotalRedesConocidas();
+    if (total == 0) {
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(10, CONTENT_TOP + 20);
+        tft.print("Todavia no hay redes guardadas");
+        return;
+    }
+
+    // Ordenadas por la mejor señal vista, de mas fuerte a mas debil.
+    // Podria ordenarse por "ultima vez vista" en cambio, pero eso usa
+    // millis() y esos valores quedan grabados en la SD de una sesion
+    // anterior - comparados contra el millis() de esta sesion (que
+    // arranca de cero en cada reset) no dicen nada real. La señal en
+    // cambio es un numero que sigue significando lo mismo siempre.
+    RedStats* todas = aprendizaje.getTodas();
+    int indices[MAX_REDES_ESCANEO];
+    for (int i = 0; i < total; i++) indices[i] = i;
+    for (int i = 0; i < total - 1; i++) {
+        for (int j = 0; j < total - 1 - i; j++) {
+            if (todas[indices[j]].mejorRSSI < todas[indices[j + 1]].mejorRSSI) {
+                int tmp = indices[j];
+                indices[j] = indices[j + 1];
+                indices[j + 1] = tmp;
+            }
+        }
+    }
+
+    int maxVisibles = alturaListado() / 20;
+    int yOffset = CONTENT_TOP + 10;
+    int mostradas = (total < maxVisibles) ? total : maxVisibles;
+
+    for (int i = 0; i < mostradas; i++) {
+        RedStats& r = todas[indices[i]];
+
+        tft.setTextColor(COLOR_TEXT, COLOR_BG);
+        tft.setCursor(5, yOffset);
+        tft.print(strlen(r.ssid) > 0 ? r.ssid : "*OCULTA*");
+
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(TFT_PANEL_WIDTH - 95, yOffset);
+        tft.print(r.mejorRSSI);
+        tft.print("dBm x");
+        tft.print(r.vecesVista);
+
+        yOffset += 20;
+    }
+
+    if (total > mostradas) {
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(10, yOffset + 4);
+        tft.print("+ ");
+        tft.print(total - mostradas);
+        tft.print(" mas, ordenadas por senial");
+    }
 }
 
 void dibujarListaRedes() {
@@ -280,15 +414,27 @@ void dibujarPantallaConfig() {
 }
 
 void manejarToque(int x, int y) {
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 2; i++) {
         if (x >= menuBotones[i].x && x <= menuBotones[i].x + menuBotones[i].w &&
             y >= menuBotones[i].y && y <= menuBotones[i].y + menuBotones[i].h) {
-            pantallaActual = (MenuScreen)(i + 1);
+            // Boton 0 = volver a la mascota, boton 1 = ir a la lista
+            // de herramientas (no a la ultima herramienta que estaba
+            // abierta - siempre arranca de la lista, asi es predecible).
+            pantallaActual = (i == 0) ? SCREEN_MAIN : SCREEN_TOOLS;
             return;
         }
     }
 
     switch (pantallaActual) {
+        case SCREEN_TOOLS:
+            for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
+                Herramienta& h = herramientas[i];
+                if (y >= h.y && y <= h.y + h.h) {
+                    pantallaActual = h.destino;
+                    return;
+                }
+            }
+            break;
         case SCREEN_SCAN:
             if (y > CONTENT_TOP && y < CONTENT_TOP + alturaListado() && !escaneando) {
                 mascota.setEstado(ESTADO_SCANNING);
@@ -321,6 +467,7 @@ void setup() {
 
     touchDriver.begin();
     calcularLayoutMenu();
+    calcularLayoutHerramientas();
     mascota.init(&tft);
 
     if (pcap.begin("wardrive")) {
@@ -363,6 +510,14 @@ void loop() {
                 mascota.incrementarRedesNuevas();
             }
         }
+        // Una sola escritura a la SD aca afuera del for: antes
+        // registrarAvistamiento() guardaba en SD por cada red
+        // individual, asi que un escaneo con 15 redes eran 15
+        // remontajes de SD seguidos. Guardando una vez al final se
+        // llega al mismo resultado sin la espera.
+        if (numRedes > 0) {
+            aprendizaje.guardarEnSD();
+        }
         Serial.printf("Escaneo completado: %d redes\n", numRedes);
 
         #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
@@ -403,53 +558,4 @@ void loop() {
     }
 
     if (enPantallaPrincipal) {
-        // Esta pantalla ES la mascota, no hay texto de bienvenida
-        // compitiendo por el mismo espacio: antes se dibujaban los
-        // dos en la misma franja, uno tapando al otro.
-        if (cambioPantalla || mascotaCambio) {
-            mascota.dibujar();
-        }
-    } else {
-        // En el resto de las pantallas la mascota no tiene su cara
-        // grande (ese lugar lo usa el contenido de la pantalla), pero
-        // la franja de arriba con su estado se mantiene igual en
-        // todos lados para no perderle la pista mientras mirás otra
-        // cosa.
-        if (cambioPantalla || mascotaCambio) {
-            mascota.dibujarEncabezado();
-        }
-        if (contenidoSucio) {
-            switch (pantallaActual) {
-                case SCREEN_SCAN:
-                    dibujarListaRedes();
-                    break;
-                case SCREEN_STATS:
-                    dibujarPantallaStats();
-                    break;
-                case SCREEN_WARDRIVE:
-                    dibujarPantallaWardrive();
-                    break;
-                case SCREEN_CONFIG:
-                    dibujarPantallaConfig();
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-
-    contenidoSucio = false;
-    pantallaAnterior = pantallaActual;
-
-    TouchPoint toque = touchDriver.read();
-    if (toque.pressed) {
-        if (toque.x >= TFT_PANEL_WIDTH / 3 && toque.y >= CONTENT_TOP && toque.y <= CONTENT_TOP + alturaListado()
-            && pantallaActual == SCREEN_MAIN) {
-            mascota.tocar(toque.x, toque.y);
-        } else {
-            manejarToque(toque.x, toque.y);
-        }
-    }
-
-    delay(10);
-}
+        // Esta pantalla ES la mascota, no hay texto de b
