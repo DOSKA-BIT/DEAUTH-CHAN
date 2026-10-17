@@ -29,11 +29,24 @@ public:
     RedStats* getStats(const uint8_t* bssid);
     int getTotalRedesConocidas() { return numStats; }
 
+    // Puntero directo al array interno, para la pantalla de "redes
+    // conocidas" que necesita recorrerlas todas y ordenarlas por
+    // señal. No es lo mas prolijo exponer el array asi nomas, pero
+    // para un proyecto de un ESP32 alcanza y sobra sin tener que
+    // armar un iterador como la gente.
+    RedStats* getTodas() { return stats; }
+
+    // Guarda el historial completo en la SD. Antes se llamaba sola
+    // desde registrarAvistamiento() en cada red del escaneo - si
+    // encontrabas 15 redes, eso eran 15 remontajes de SD seguidos.
+    // Ahora el que llama a registrarAvistamiento() en un loop se
+    // encarga de llamar a esto una sola vez al final.
+    void guardarEnSD();
+
 private:
     RedStats stats[MAX_REDES_ESCANEO];
     int numStats = 0;
 
-    void guardarEnSD();
     void cargarDesdeSD();
     RedStats* buscar(const uint8_t* bssid);
 };

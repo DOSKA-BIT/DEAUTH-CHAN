@@ -15,7 +15,6 @@ bool Learning::registrarAvistamiento(const RedInfo& red) {
         if (red.rssi > existente->mejorRSSI) {
             existente->mejorRSSI = red.rssi;
         }
-        guardarEnSD();
         return false;
     }
 
@@ -42,7 +41,6 @@ bool Learning::registrarAvistamiento(const RedInfo& red) {
     stats[numStats].ultimaVez = ahora;
     numStats++;
 
-    guardarEnSD();
     return true;
 }
 
@@ -60,6 +58,9 @@ RedStats* Learning::buscar(const uint8_t* bssid) {
 }
 
 void Learning::guardarEnSD() {
+    // Mismo tema que en PCAPWriter.cpp y Wardriving.cpp: el end() es
+    // necesario para que la SD realmente vuelva a mapear sus pines
+    // si el touch se quedo con el bus VSPI compartido.
     SD.end();
     if (!SD.begin(SD_CS_PIN)) return;
     File file = SD.open("/redes_conocidas.bin", FILE_WRITE);
