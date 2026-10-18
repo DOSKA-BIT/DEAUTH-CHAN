@@ -7,6 +7,7 @@
 
 #define MAX_CLIENTES 20
 #define CLIENTE_TIMEOUT 10000
+#define CONTEO_CLIENTES_MS 3000
 #define MAX_ANOMALIAS_RAM 8
 
 // Un frame de deauth o disassoc suelto es normal (un router dando de
@@ -47,9 +48,22 @@ public:
     void getScanResults(RedInfo* resultados, int maxRedes, int& encontradas);
 
     // Cuenta cuantos dispositivos distintos se escuchan hablando con un
-    // BSSID puntual, quedandose escuchando en su canal unos segundos.
-    // Es pura recepcion (modo promiscuo), en ningun momento se transmite.
-    void contarClientes(const uint8_t* bssid, int canal);
+    // BSSID puntual. Es pura recepcion (modo promiscuo), en ningun
+    // momento se transmite nada.
+    //
+    // Antes esto era una sola funcion (contarClientes) que se quedaba
+    // 3 segundos enteros en un "while + delay(10)" bloqueando TODO el
+    // firmware mientras tanto - ni el touch, ni la mascota, ni el
+    // escaneo normal respondian en ese rato. Nunca llego a usarse
+    // desde ningun boton por esa misma razon. Ahora son 3 pasos no
+    // bloqueantes: iniciarConteoClientes() arranca y vuelve al toque,
+    // update() hay que llamarlo en cada vuelta del loop() (corta solo
+    // a los 3 segundos), y conteoEnProgreso()/tiempoRestanteConteo()
+    // son para que la pantalla pueda mostrar un "Escuchando... 2s".
+    void iniciarConteoClientes(const uint8_t* bssid, int canal);
+    void update();
+    bool conteoEnProgreso();
+    unsigned long tiempoRestanteConteo();
     ClienteInfo* getClientes(int& count);
 
     void setLED(bool state);
@@ -67,11 +81,14 @@ private:
     void actualizarCliente(uint8_t* mac, int rssi, uint8_t* bssid, int canal);
     void registrarAnomalia(bool esDisassoc, uint8_t* origen, uint8_t* destino, int canal, int rssi);
 
+    void finalizarConteoClientes();
+
     ClienteInfo clientes[MAX_CLIENTES];
     int numClientes = 0;
     uint8_t bssidObjetivo[6];
     int canalObjetivo = 0;
     bool escuchandoClientes = false;
+    unsigned long conteoInicio = 0;
 
     AnomaliaWiFi anomalias[MAX_ANOMALIAS_RAM];
     int numAnomalias = 0;

@@ -42,6 +42,12 @@ RedInfo redes[MAX_REDES_ESCANEO];
 int numRedes = 0;
 bool escaneando = false;
 
+// Indice (dentro de redes[]) de la red cuyo conteo de clientes se
+// esta mostrando/mostro ultimo en la pantalla de Escaneo. -1 = no hay
+// ningun resultado de conteo para mostrar, se ve la lista de redes
+// normal.
+int redIndiceConteo = -1;
+
 // Momento del ultimo toque real en la pantalla (no cuenta el toque
 // que la despierta, ver mas abajo). Arranca en 0 y se pisa recien en
 // setup(), asi el reloj de inactividad no empieza a correr hasta que
@@ -379,6 +385,74 @@ void dibujarListaRedes() {
         return;
     }
 
+    // Conteo de clientes de una red puntual en curso: antes
+    // scanner.contarClientes() bloqueaba el firmware entero 3
+    // segundos enteros con un while+delay(). Ahora es no bloqueante
+    // (ver WiFiScanner::update()) y mientras dura se muestra esto en
+    // vez de la lista, con la cuenta regresiva real.
+    if (scanner.conteoEnProgreso()) {
+        tft.setTextColor(COLOR_WARN, COLOR_BG);
+        tft.setCursor(10, CONTENT_TOP + 20);
+        tft.print("Escuchando clientes de");
+        tft.setTextColor(COLOR_TEXT, COLOR_BG);
+        tft.setCursor(10, CONTENT_TOP + 40);
+        if (redIndiceConteo >= 0 && redIndiceConteo < numRedes) {
+            tft.print(redes[redIndiceConteo].ssid);
+        }
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(10, CONTENT_TOP + 60);
+        tft.print((scanner.tiempoRestanteConteo() / 1000) + 1);
+        tft.print("s restantes");
+        return;
+    }
+
+    // Resultado del ultimo conteo de clientes: se queda mostrado
+    // hasta que se toque de nuevo (vuelve a la lista) o se pida un
+    // escaneo nuevo.
+    if (redIndiceConteo >= 0 && redIndiceConteo < numRedes) {
+        tft.setTextColor(COLOR_ACCENT, COLOR_BG);
+        tft.setCursor(5, CONTENT_TOP + 4);
+        tft.print("Clientes de ");
+        tft.print(redes[redIndiceConteo].ssid);
+
+        int total = 0;
+        ClienteInfo* lista = scanner.getClientes(total);
+
+        if (total == 0) {
+            tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+            tft.setCursor(10, CONTENT_TOP + 26);
+            tft.print("Nadie hablando con esta red ahora");
+        } else {
+            int maxVisibles = (alturaListado() - 36) / 18;
+            int yOffset = CONTENT_TOP + 24;
+            int mostradas = (total < maxVisibles) ? total : maxVisibles;
+            for (int i = 0; i < mostradas; i++) {
+                ClienteInfo& c = lista[i];
+                tft.setTextColor(COLOR_TEXT, COLOR_BG);
+                tft.setCursor(5, yOffset);
+                tft.print(c.fabricante);
+
+                tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+                tft.setCursor(TFT_PANEL_WIDTH - 60, yOffset);
+                tft.print(c.rssi);
+                tft.print("dBm");
+                yOffset += 18;
+            }
+            if (total > mostradas) {
+                tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+                tft.setCursor(5, yOffset);
+                tft.print("+ ");
+                tft.print(total - mostradas);
+                tft.print(" mas");
+            }
+        }
+
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(5, CONTENT_TOP + alturaListado() - 14);
+        tft.print("Toca para volver a la lista");
+        return;
+    }
+
     int yOffset = CONTENT_TOP + 10;
     int maxVisibles = alturaListado() / 20;
 
@@ -404,6 +478,10 @@ void dibujarListaRedes() {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(10, CONTENT_TOP + 20);
         tft.print("Toca aca para escanear");
+    } else {
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(5, CONTENT_TOP + alturaListado() - 14);
+        tft.print("Toca una red para ver sus clientes");
     }
 }
 
@@ -622,14 +700,49 @@ void manejarToque(int x, int y) {
                 }
             }
             break;
-        case SCREEN_SCAN:
-            if (y > CONTENT_TOP && y < CONTENT_TOP + alturaListado() && !escaneando) {
+        case SCREEN_SCAN: {
+            // Mientras hay un escaneo o un conteo de clientes en
+            // curso, un toque no hace nada - hay que esperar a que
+            // termine (el conteo ya no bloquea el firmware mientras
+            // tanto, asi que el resto de la interfaz sigue andando).
+            if (escaneando || scanner.conteoEnProgreso()) break;
+
+            if (redIndiceConteo >= 0) {
+                // Se esta mostrando el resultado de un conteo: un
+                // toque en cualquier lado vuelve a la lista de redes,
+                // en vez de interpretar la posicion como si fuera una
+                // fila de esa lista (son datos distintos en el mismo
+                // lugar de la pantalla).
+                redIndiceConteo = -1;
+                contenidoSucio = true;
+                break;
+            }
+
+            int primeraFilaY = CONTENT_TOP + 10;
+            int filaAlto = 20;
+            int indiceFila = (y - primeraFilaY) / filaAlto;
+            bool filaValida = (y >= primeraFilaY) && indiceFila >= 0 &&
+                indiceFila < numRedes && indiceFila < (alturaListado() / filaAlto);
+
+            if (filaValida) {
+                // Toco una red puntual: arranca el conteo pasivo de
+                // clientes para esa red (no bloqueante).
+                scanner.iniciarConteoClientes(redes[indiceFila].bssid, redes[indiceFila].canal);
+                redIndiceConteo = indiceFila;
+                contenidoSucio = true;
+            } else if (y > CONTENT_TOP && y < CONTENT_TOP + alturaListado()) {
+                // Toco el espacio vacio debajo de la lista (o no hay
+                // lista todavia): pide un escaneo nuevo. redIndiceConteo
+                // ya esta en -1 en esta rama (si no, hubiera entrado en
+                // el "if" de arriba), pero un escaneo nuevo tambien
+                // deja vieja cualquier referencia a redes[] anterior.
                 mascota.setEstado(ESTADO_SCANNING);
                 scanner.startScan();
                 escaneando = true;
                 contenidoSucio = true; // para que se vea "Escaneando..." ya mismo
             }
             break;
+        }
         case SCREEN_WARDRIVE:
             if (y > CONTENT_TOP + 95 && y < CONTENT_TOP + 120) {
                 wardriver.exportKML();
@@ -685,12 +798,14 @@ void setup() {
 void loop() {
     gps.update();
     mascota.update();
+    scanner.update(); // corta solo el conteo de clientes a los 3s (ver WiFiScanner::update)
 
     // Modo sleep: si nadie toco la pantalla en SLEEP_TIMEOUT_MS y no
-    // hay un escaneo activo, apagamos el backlight. No tocamos nada
-    // de WiFi/SD/GPS -- el resto de los modulos sigue funcionando
-    // igual, lo unico que cambia es que la pantalla deja de consumir.
-    if (!escaneando && mascota.getEstado() != ESTADO_SLEEP &&
+    // hay un escaneo ni un conteo de clientes activo, apagamos el
+    // backlight. No tocamos nada de WiFi/SD/GPS -- el resto de los
+    // modulos sigue funcionando igual, lo unico que cambia es que la
+    // pantalla deja de consumir.
+    if (!escaneando && !scanner.conteoEnProgreso() && mascota.getEstado() != ESTADO_SLEEP &&
         millis() - ultimoToque > SLEEP_TIMEOUT_MS) {
         mascota.setEstado(ESTADO_SLEEP);
         digitalWrite(TFT_BL_PIN, LOW);
@@ -750,6 +865,28 @@ void loop() {
         #endif
 
         contenidoSucio = true; // hay resultados nuevos para mostrar en la lista
+    }
+
+    // Conteo de clientes no bloqueante: mientras dura, se repinta la
+    // cuenta regresiva cada medio segundo; apenas termina (deja de
+    // estar en progreso de una vuelta del loop a la otra) se marca
+    // contenidoSucio una sola vez para que se vea el resultado final.
+    {
+        static bool conteoEnProgresoAnterior = false;
+        bool conteoAhora = scanner.conteoEnProgreso();
+        if (conteoEnProgresoAnterior && !conteoAhora) {
+            contenidoSucio = true;
+        }
+        conteoEnProgresoAnterior = conteoAhora;
+
+        if (pantallaActual == SCREEN_SCAN && conteoAhora) {
+            static unsigned long ultimoRefrescoConteo = 0;
+            unsigned long ahoraConteo = millis();
+            if (ahoraConteo - ultimoRefrescoConteo >= 500) {
+                ultimoRefrescoConteo = ahoraConteo;
+                dibujarListaRedes();
+            }
+        }
     }
 
     static MenuScreen pantallaAnterior = (MenuScreen)-1;

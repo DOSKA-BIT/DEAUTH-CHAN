@@ -44,20 +44,38 @@ void WiFiScanner::getScanResults(RedInfo* resultados, int maxRedes, int& encontr
     Serial.printf("%d redes encontradas\n", encontradas);
 }
 
-void WiFiScanner::contarClientes(const uint8_t* bssid, int canal) {
+void WiFiScanner::iniciarConteoClientes(const uint8_t* bssid, int canal) {
     memcpy(bssidObjetivo, bssid, 6);
     canalObjetivo = canal;
     numClientes = 0;
+    conteoInicio = millis();
     escuchandoClientes = true;
 
     esp_wifi_set_channel(canal, WIFI_SECOND_CHAN_NONE);
     Serial.printf("Escuchando trafico en canal %d\n", canal);
+    // Y listo, se vuelve ya mismo - nada de quedarse esperando aca.
+    // El corte a los CONTEO_CLIENTES_MS lo hace update().
+}
 
-    unsigned long start = millis();
-    while (millis() - start < 3000) {
-        delay(10);
+void WiFiScanner::update() {
+    if (!escuchandoClientes) return;
+    if (millis() - conteoInicio >= CONTEO_CLIENTES_MS) {
+        finalizarConteoClientes();
     }
+}
 
+bool WiFiScanner::conteoEnProgreso() {
+    return escuchandoClientes;
+}
+
+unsigned long WiFiScanner::tiempoRestanteConteo() {
+    if (!escuchandoClientes) return 0;
+    unsigned long transcurrido = millis() - conteoInicio;
+    if (transcurrido >= CONTEO_CLIENTES_MS) return 0;
+    return CONTEO_CLIENTES_MS - transcurrido;
+}
+
+void WiFiScanner::finalizarConteoClientes() {
     unsigned long ahora = millis();
     for (int i = 0; i < numClientes; i++) {
         if (ahora - clientes[i].ultimaVez > CLIENTE_TIMEOUT) {
