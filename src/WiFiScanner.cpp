@@ -82,8 +82,40 @@ void WiFiScanner::setLED(bool state) {
     digitalWrite(TFT_BL_PIN, state ? HIGH : LOW);
 }
 
+void WiFiScanner::registrarAnomalia(bool esDisassoc, uint8_t* origen, uint8_t* destino, int canal, int rssi) {
+    if (esDisassoc) {
+        contadorDisassoc++;
+    } else {
+        contadorDeauth++;
+    }
+
+    // Shift simple, igual que en EventLog: con 8 lugares nomas no
+    // vale la pena un indice de buffer circular para esto.
+    for (int i = MAX_ANOMALIAS_RAM - 1; i > 0; i--) {
+        anomalias[i] = anomalias[i - 1];
+    }
+    anomalias[0].momento = millis();
+    memcpy(anomalias[0].origen, origen, 6);
+    memcpy(anomalias[0].destino, destino, 6);
+    anomalias[0].canal = canal;
+    anomalias[0].rssi = rssi;
+    anomalias[0].esDisassoc = esDisassoc;
+
+    if (numAnomalias < MAX_ANOMALIAS_RAM) numAnomalias++;
+}
+
+void WiFiScanner::getAnomaliasStats(unsigned long& deauth, unsigned long& disassoc) {
+    deauth = contadorDeauth;
+    disassoc = contadorDisassoc;
+}
+
+AnomaliaWiFi* WiFiScanner::getAnomalias(int& count) {
+    count = numAnomalias;
+    return anomalias;
+}
+
 void WiFiScanner::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type) {
-    if (!instance || !instance->escuchandoClientes) return;
+    if (!instance) return;
 
     wifi_promiscuous_pkt_t* pkt = (wifi_promiscuous_pkt_t*)buf;
     uint8_t* frame = pkt->payload;
@@ -91,6 +123,25 @@ void WiFiScanner::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t typ
     int rssi = pkt->rx_ctrl.rssi;
 
     if (len < 24) return;
+
+    // Monitor pasivo de deauth/disassoc: se fija en esto para TODO
+    // paquete que pasa por aca, no solo mientras se esta contando
+    // clientes de un BSSID puntual (por eso va antes del "return" de
+    // abajo). El frame control son los primeros 2 bytes de cualquier
+    // frame 802.11; el tipo esta en los bits 2-3 y el subtipo en los
+    // bits 4-7. Tipo 0 = management, subtipo 0x0C = deauth, 0x0A =
+    // disassoc.
+    uint8_t tipoFrame = (frame[0] >> 2) & 0x3;
+    uint8_t subtipoFrame = (frame[0] >> 4) & 0xF;
+    if (tipoFrame == 0 && (subtipoFrame == 0x0C || subtipoFrame == 0x0A)) {
+        // addr1 = destino (frame[4..9]), addr2 = origen/transmisor
+        // (frame[10..15]) - mismos offsets que usa el conteo de
+        // clientes de aca abajo.
+        instance->registrarAnomalia(subtipoFrame == 0x0A, &frame[10], &frame[4],
+            pkt->rx_ctrl.channel, rssi);
+    }
+
+    if (!instance->escuchandoClientes) return;
 
     uint8_t* addr1 = &frame[4];
     uint8_t* addr2 = &frame[10];
