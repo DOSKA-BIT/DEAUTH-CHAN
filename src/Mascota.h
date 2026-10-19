@@ -50,27 +50,19 @@ private:
     uint8_t firmaAnterior;
     uint8_t firmaVisual() const;
 
-    // El sprite se dibuja centrado sobre un cuadrado fijo, pero la
-    // posicion de ese cuadrado depende del ancho real de la pantalla
-    // (240 en la 2.8/2.4", mas ancho en las 3.5"), asi que se calcula
-    // una vez en init() en vez de tenerlo hardcodeado como en la
-    // version vieja.
+    // El sprite (ver MascotaSprite.h) se dibuja centrado segun el
+    // ancho real de la pantalla (240 en la 2.8/2.4", mas ancho en las
+    // 3.5"), asi que se calcula una vez en init() en vez de tenerlo
+    // hardcodeado.
     int spriteX;
     int spriteY;
-    static const int SPRITE_SIZE = 88;
 
-    // Pequeno balanceo vertical para que no quede tan tiesa parada
-    // ahi, calculado a partir del frame de animacion.
+    // Pequeno balanceo vertical para que no quede tan tieso parado
+    // ahi, calculado a partir del frame de animacion. Se sigue usando
+    // con el arte nuevo igual que con los dibujos a mano de antes.
     int bobbing() const;
 
     void dibujarSprite();
-    void dibujarIdle();
-    void dibujarScanning();
-    void dibujarHappy();
-    void dibujarCuriosa();
-    void dibujarSleep();
-    void dibujarCaraBase(uint16_t color, int y);
-    void dibujarOjos(int y, bool cerrados);
     const char* nombreEstado() const;
     uint16_t colorEstado() const;
 };

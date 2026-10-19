@@ -1,5 +1,6 @@
 #include "Mascota.h"
 #include "Theme.h"
+#include "MascotaSprite.h"
 
 Mascota::Mascota() {
     estadoActual = ESTADO_IDLE;
@@ -22,7 +23,7 @@ void Mascota::init(TFT_eSPI* tft) {
     // Centrado horizontal segun el ancho real de la placa que este
     // corriendo, para no dejar la cara pegada a un costado en las
     // pantallas de 320 o 480px de ancho.
-    spriteX = (TFT_PANEL_WIDTH / 2) - (SPRITE_SIZE / 2);
+    spriteX = (TFT_PANEL_WIDTH / 2) - (MASCOTA_W / 2);
 }
 
 void Mascota::update() {
@@ -135,171 +136,100 @@ void Mascota::dibujarEncabezado() {
 }
 
 void Mascota::dibujarSprite() {
-    switch (estadoActual) {
-        case ESTADO_IDLE:     dibujarIdle(); break;
-        case ESTADO_SCANNING: dibujarScanning(); break;
-        case ESTADO_HAPPY:    dibujarHappy(); break;
-        case ESTADO_CURIOSA:  dibujarCuriosa(); break;
-        case ESTADO_SLEEP:    dibujarSleep(); break;
-        default: dibujarIdle(); break;
-    }
-}
-
-void Mascota::dibujarCaraBase(uint16_t color, int y) {
     int x = spriteX;
-    int s = SPRITE_SIZE;
-
-    // Un par de orejitas/antenitas antes del cuerpo, asi queda mas
-    // bicho y menos cuadrado pelado.
-    display->fillTriangle(x + 14, y + 6, x + 6, y - 10, x + 26, y, color);
-    display->fillTriangle(x + s - 14, y + 6, x + s - 6, y - 10, x + s - 26, y, color);
-
-    display->fillRoundRect(x, y, s, s, 20, color);
-    display->drawRoundRect(x, y, s, s, 20, COLOR_TEXT);
-
-    // Brillito arriba a la izquierda, da la sensacion de que el
-    // cuerpo es medio brillante/plastico en vez de plano.
-    display->drawLine(x + 14, y + 10, x + 32, y + 10, COLOR_TEXT);
-    display->drawPixel(x + 12, y + 11, COLOR_TEXT);
-}
-
-void Mascota::dibujarOjos(int y, bool cerrados) {
-    int x = spriteX;
-    int s = SPRITE_SIZE;
-    int ojoIzqX = x + s / 3;
-    int ojoDerX = x + s - s / 3;
-    int ojoY = y + s / 2 - 6;
-
-    if (cerrados) {
-        display->drawLine(ojoIzqX - 6, ojoY, ojoIzqX + 6, ojoY, COLOR_BG);
-        display->drawLine(ojoDerX - 6, ojoY, ojoDerX + 6, ojoY, COLOR_BG);
-        return;
-    }
-
-    display->fillCircle(ojoIzqX, ojoY, 7, COLOR_TEXT);
-    display->fillCircle(ojoDerX, ojoY, 7, COLOR_TEXT);
-    display->fillCircle(ojoIzqX, ojoY, 3, COLOR_BG);
-    display->fillCircle(ojoDerX, ojoY, 3, COLOR_BG);
-    // puntito de brillo en cada ojo, para que no quede con cara de
-    // muneca de porcelana
-    display->drawPixel(ojoIzqX - 1, ojoY - 1, COLOR_TEXT);
-    display->drawPixel(ojoDerX - 1, ojoY - 1, COLOR_TEXT);
-}
-
-void Mascota::dibujarIdle() {
-    int y = spriteY + bobbing();
-    dibujarCaraBase(COLOR_ACCENT, y);
-
-    bool parpadeo = (frameAnimacion % 16) < 2;
-    dibujarOjos(y, parpadeo);
-
-    int x = spriteX;
-    int s = SPRITE_SIZE;
-    // sonrisa chiquita, de estar tranquila nomas
-    display->drawLine(x + s / 2 - 10, y + s - 24, x + s / 2, y + s - 18, COLOR_BG);
-    display->drawLine(x + s / 2, y + s - 18, x + s / 2 + 10, y + s - 24, COLOR_BG);
-}
-
-void Mascota::dibujarScanning() {
-    int y = spriteY; // sin bobbing aca, esta concentrada buscando
-    dibujarCaraBase(COLOR_WARN, y);
-    dibujarOjos(y, false);
-
-    int x = spriteX;
-    int s = SPRITE_SIZE;
-    // boquita en "o", cara de concentrada
-    display->drawCircle(x + s / 2, y + s - 20, 4, COLOR_BG);
-
-    // antena en movimiento, como un radar barriendo de un lado al
-    // otro mientras busca redes
-    int offset = (frameAnimacion % 8);
-    if (offset > 4) offset = 8 - offset;
-    int puntaX = x + s / 2 - 12 + offset * 6;
-    display->drawLine(x + s / 2, y - 6, puntaX, y - 24, COLOR_DANGER);
-    display->fillCircle(puntaX, y - 26, 3, COLOR_DANGER);
-}
-
-void Mascota::dibujarHappy() {
-    // un pequeno salto en vez del vaiven lento de siempre, para que
-    // se note que esta contenta
-    int salto = ((frameAnimacion % 8) < 4) ? -4 : 0;
-    int y = spriteY + salto;
-    dibujarCaraBase(COLOR_ACCENT, y);
-    dibujarOjos(y, false);
-
-    int x = spriteX;
-    int s = SPRITE_SIZE;
-    display->drawLine(x + s / 2 - 14, y + s - 26, x + s / 2, y + s - 14, COLOR_BG);
-    display->drawLine(x + s / 2, y + s - 14, x + s / 2 + 14, y + s - 26, COLOR_BG);
-    display->drawLine(x + s / 2 - 14, y + s - 25, x + s / 2, y + s - 13, COLOR_BG);
-    display->drawLine(x + s / 2, y + s - 13, x + s / 2 + 14, y + s - 25, COLOR_BG);
-
-    display->setTextColor(COLOR_ACCENT);
-    display->setTextFont(2);
-    display->setCursor(x + s + 10, y + 16);
-    display->print("WII!");
-    display->setTextFont(1);
-}
-
-void Mascota::dibujarCuriosa() {
-    // Antes esta cara era la de "ataque" (enojada, con rayos). La dejo
-    // como cara curiosa: ceja levantada + antena parada, para cuando
-    // aparece una red que no estaba en el historial. Nada de rayos ni
-    // caras de bronca, total la mascota ya no ataca nada.
     int y = spriteY;
-    dibujarCaraBase(COLOR_WARN, y);
-    dibujarOjos(y, false);
 
-    int x = spriteX;
-    int s = SPRITE_SIZE;
-
-    // ceja levantada arriba del ojo izquierdo
-    display->drawLine(x + s / 3 - 8, y + s / 2 - 16, x + s / 3 + 6, y + s / 2 - 20, COLOR_BG);
-
-    // boca entreabierta, cara de "y esto que es?"
-    display->drawCircle(x + s / 2, y + s - 20, 4, COLOR_BG);
-
-    // antena bien parada con un signo de pregunta al lado
-    display->drawLine(x + s / 2, y - 6, x + s / 2, y - 22, COLOR_WARN);
-    display->fillCircle(x + s / 2, y - 24, 3, COLOR_WARN);
-
-    display->setTextColor(COLOR_WARN);
-    display->setTextFont(2);
-    display->setCursor(x + s + 14, y + 14);
-    display->print("?");
-    display->setTextFont(1);
-}
-
-void Mascota::dibujarSleep() {
-    int y = spriteY; // quieta, nada de bobbing mientras duerme
-    int x = spriteX;
-    int s = SPRITE_SIZE;
-
-    dibujarCaraBase(COLOR_SLEEP, y);
-    display->drawRoundRect(x, y, s, s, 20, COLOR_SLEEP_BORDE);
-    dibujarOjos(y, true);
-
-    // boquita chiquita, respirando tranquila
-    display->drawLine(x + s / 2 - 4, y + s - 20, x + s / 2 + 4, y + s - 20, COLOR_SLEEP_BORDE);
-
-    int zOffset = (frameAnimacion % 16);
-    display->setTextColor(COLOR_SLEEP_BORDE);
-    display->setTextFont(2);
-
-    display->setCursor(x + s - 10, y - 10 - zOffset);
-    display->print("z");
-
-    if (zOffset > 5) {
-        display->setCursor(x + s + 2, y - 22 - zOffset + 5);
-        display->print("Z");
+    switch (estadoActual) {
+        case ESTADO_IDLE:
+            // el vaiven suave de siempre, de estar tranquila nomas
+            y += bobbing();
+            break;
+        case ESTADO_HAPPY:
+            // un pequeno salto en vez del vaiven lento, para que se
+            // note que esta contenta
+            y += ((frameAnimacion % 8) < 4) ? -4 : 0;
+            break;
+        case ESTADO_SCANNING:
+        case ESTADO_CURIOSA:
+        case ESTADO_SLEEP:
+        default:
+            // quieta; lo que se mueve en estos estados es el
+            // indicador de al lado, no el sprite en si
+            break;
     }
 
-    if (zOffset > 10) {
-        display->setCursor(x + s + 16, y - 34 - zOffset + 10);
-        display->print("Z");
-    }
+    // El sprite tiene fondo transparente y se puede mover (bobbing,
+    // salto), asi que hay que limpiar una zona mas grande que el
+    // sprite mismo para no dejar restos del frame anterior ni de los
+    // indicadores (antena, zZz) que se dibujan arriba/al costado.
+    display->fillRect(x - 10, spriteY - 40, MASCOTA_W + 100, MASCOTA_H + 50, COLOR_BG);
 
-    display->setTextFont(1);
+    display->pushImage(x, y, MASCOTA_W, MASCOTA_H, mascotaRGB565, MASCOTA_TRANSPARENT);
+
+    // El sprite en si es un dibujo fijo (ya no hay una pose distinta
+    // por estado como con el arte a mano de antes), asi que un
+    // indicador chiquito al lado es lo que le avisa al usuario que
+    // esta pasando, ademas de la pildora de estado de arriba.
+    int indicadorX = x + MASCOTA_W + 10;
+    int indicadorY = y + MASCOTA_H / 2 - 10;
+
+    switch (estadoActual) {
+        case ESTADO_HAPPY:
+            display->setTextColor(COLOR_ACCENT, COLOR_BG);
+            display->setTextFont(2);
+            display->setCursor(indicadorX, indicadorY);
+            display->print("WII!");
+            display->setTextFont(1);
+            break;
+
+        case ESTADO_CURIOSA:
+            // Antes esta cara era la de "ataque" (enojada, con rayos).
+            // Ahora es solo el signo de pregunta, para cuando aparece
+            // una red que no estaba en el historial. Nada de rayos ni
+            // caras de bronca, total la mascota ya no ataca nada.
+            display->setTextColor(COLOR_WARN, COLOR_BG);
+            display->setTextFont(2);
+            display->setCursor(indicadorX, indicadorY);
+            display->print("?");
+            display->setTextFont(1);
+            break;
+
+        case ESTADO_SCANNING: {
+            // antena/radar simple barriendo de un lado al otro
+            // mientras busca redes
+            int offset = (frameAnimacion % 8);
+            if (offset > 4) offset = 8 - offset;
+            int puntaX = x + MASCOTA_W / 2 - 12 + offset * 6;
+            display->drawLine(x + MASCOTA_W / 2, spriteY - 4, puntaX, spriteY - 20, COLOR_DANGER);
+            display->fillCircle(puntaX, spriteY - 22, 3, COLOR_DANGER);
+            break;
+        }
+
+        case ESTADO_SLEEP: {
+            int zOffset = (frameAnimacion % 16);
+            display->setTextColor(COLOR_SLEEP_BORDE, COLOR_BG);
+            display->setTextFont(2);
+
+            display->setCursor(x + MASCOTA_W - 10, y - 10 - zOffset);
+            display->print("z");
+
+            if (zOffset > 5) {
+                display->setCursor(x + MASCOTA_W + 2, y - 22 - zOffset + 5);
+                display->print("Z");
+            }
+
+            if (zOffset > 10) {
+                display->setCursor(x + MASCOTA_W + 16, y - 34 - zOffset + 10);
+                display->print("Z");
+            }
+
+            display->setTextFont(1);
+            break;
+        }
+
+        default:
+            break;
+    }
 }
 
 void Mascota::incrementarRedesNuevas() {
@@ -312,8 +242,8 @@ void Mascota::setRedesEncontradas(int cantidad) {
 }
 
 void Mascota::tocar(int tx, int ty) {
-    if (tx >= spriteX && tx <= spriteX + SPRITE_SIZE &&
-        ty >= spriteY && ty <= spriteY + SPRITE_SIZE) {
+    if (tx >= spriteX && tx <= spriteX + MASCOTA_W &&
+        ty >= spriteY && ty <= spriteY + MASCOTA_H) {
         setEstado(ESTADO_HAPPY);
     }
 }
