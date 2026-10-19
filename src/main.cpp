@@ -42,6 +42,20 @@ RedInfo redes[MAX_REDES_ESCANEO];
 int numRedes = 0;
 bool escaneando = false;
 
+// Filtro de que se guarda en wardriving.csv: 0 = todas las redes
+// (comportamiento de siempre), 1 = solo las abiertas, 2 = solo las
+// que tienen clave. Wardriving::setFilterByEncryption() ya existia
+// en el codigo, pero no habia ningun boton que la llamara - y peor,
+// saveNetwork() tampoco consultaba el filtro, asi que aunque alguien
+// la hubiera llamado a mano no cambiaba nada. Las dos cosas se
+// arreglan juntas (ver Wardriving.cpp).
+int filtroWardrive = 0;
+
+// Resultado del ultimo intento de exportar el KML: -2 = todavia no se
+// toco el boton en esta sesion, -1 = fallo (sin SD o sin CSV todavia),
+// 0 o mas = cantidad de puntos que escribio.
+int ultimoExportKML = -2;
+
 // Indice (dentro de redes[]) de la red cuyo conteo de clientes se
 // esta mostrando/mostro ultimo en la pantalla de Escaneo. -1 = no hay
 // ningun resultado de conteo para mostrar, se ve la lista de redes
@@ -558,9 +572,42 @@ void dibujarPantallaWardrive() {
     }
     tft.print(lineas > 0 ? lineas : 0);
 
-    tft.setCursor(10, CONTENT_TOP + 105);
+    // Filtro de que se guarda: se cicla tocando esta linea. Se guarda
+    // en RAM nomas (no en la SD), asi que vuelve a "Todas" en cada
+    // reinicio - es una decision de la sesion actual, no una
+    // preferencia permanente del dispositivo.
+    tft.setCursor(10, CONTENT_TOP + 95);
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.print("Filtro [toca]: ");
+    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
+    if (filtroWardrive == 0) {
+        tft.print("Todas");
+    } else if (filtroWardrive == 1) {
+        tft.print("Solo abiertas");
+    } else {
+        tft.print("Solo con clave");
+    }
+
+    tft.setCursor(10, CONTENT_TOP + 120);
     tft.setTextColor(COLOR_WARN, COLOR_BG);
     tft.print("[Toca para exportar KML]");
+
+    // Resultado del ultimo export, para que tocar el boton de arriba
+    // no se sienta como que no paso nada - antes exportKML() no hacia
+    // nada real, asi que tampoco habia nada que mostrar aca.
+    tft.setCursor(10, CONTENT_TOP + 145);
+    if (ultimoExportKML == -2) {
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.print("(todavia no exportaste nada)");
+    } else if (ultimoExportKML < 0) {
+        tft.setTextColor(COLOR_DANGER, COLOR_BG);
+        tft.print("Error: sin SD o sin datos");
+    } else {
+        tft.setTextColor(ultimoExportKML > 0 ? COLOR_ACCENT : COLOR_WARN, COLOR_BG);
+        tft.print("wardriving.kml: ");
+        tft.print(ultimoExportKML);
+        tft.print(" puntos");
+    }
 
     #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
         touchDriver.reclaimBus();
@@ -744,8 +791,30 @@ void manejarToque(int x, int y) {
             break;
         }
         case SCREEN_WARDRIVE:
-            if (y > CONTENT_TOP + 95 && y < CONTENT_TOP + 120) {
-                wardriver.exportKML();
+            if (y > CONTENT_TOP + 90 && y < CONTENT_TOP + 110) {
+                // Cicla entre los 3 modos. El filtro solo distingue
+                // "tiene clave si o no" porque es lo unico que guarda
+                // RedInfo (tieneClave es un bool) - no hay forma de
+                // pedir "solo WPA2" sin guardar tambien el modo exacto
+                // de cada red, que hoy no se guarda en ningun lado.
+                filtroWardrive = (filtroWardrive + 1) % 3;
+                if (filtroWardrive == 0) {
+                    wardriver.setFilterByEncryption(false, WIFI_AUTH_OPEN);
+                } else if (filtroWardrive == 1) {
+                    wardriver.setFilterByEncryption(true, WIFI_AUTH_OPEN);
+                } else {
+                    wardriver.setFilterByEncryption(true, WIFI_AUTH_WPA2_PSK);
+                }
+                contenidoSucio = true;
+            } else if (y > CONTENT_TOP + 118 && y < CONTENT_TOP + 140) {
+                ultimoExportKML = wardriver.exportKML();
+                #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+                    // exportKML() remonta la SD (lee el csv y escribe
+                    // el kml), asi que hay que reclamar el bus para el
+                    // touch antes de que se lea el proximo toque.
+                    touchDriver.reclaimBus();
+                #endif
+                contenidoSucio = true; // para mostrar el resultado ya mismo
             }
             break;
         default:
