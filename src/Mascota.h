@@ -1,5 +1,5 @@
-#ifndef MASCOTA_H
-#define MASCOTA_H
+#ifndef MASCOTA_CLASS_H
+#define MASCOTA_CLASS_H
 
 #include <TFT_eSPI.h>
 #include "config.h"
