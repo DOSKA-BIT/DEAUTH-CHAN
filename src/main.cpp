@@ -988,7 +988,11 @@ void loop() {
         // compitiendo por el mismo espacio: antes se dibujaban los
         // dos en la misma franja, uno tapando al otro.
         if (cambioPantalla || mascotaCambio) {
-            mascota.dibujar();
+            // El borrado completo de la franja solo hace falta al
+            // entrar a esta pantalla; en los redibujados de animacion
+            // (mascotaCambio solo) alcanza con que la mascota limpie
+            // su propia zona, si no la pantalla parpadea de mas.
+            mascota.dibujar(cambioPantalla);
         }
     } else {
         // En el resto de las pantallas la mascota no tiene su cara

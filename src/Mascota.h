@@ -14,7 +14,15 @@ public:
 
     // Dibuja todo: la barra de arriba y la cara grande. Es lo que se
     // usa en la pantalla principal, que es "la mascota" en si.
-    void dibujar();
+    //
+    // limpiarTodo=true borra antes TODA la franja de contenido (hace
+    // falta al entrar a esta pantalla, para no dejar restos de la
+    // pantalla anterior). En los redibujados normales (solo para
+    // animar) no hace falta: el encabezado y el sprite ya limpian su
+    // propia zona cada uno, y agregar un borrado de toda la franja
+    // ademas de eso es lo que hacia parpadear la pantalla cada vez que
+    // tocaba animar (bobbing, cambio de frame, etc).
+    void dibujar(bool limpiarTodo = false);
 
     // Solo la barra de arriba (estado, contador de redes), sin la
     // cara grande. Las demas pantallas (escaneo, stats, etc) la usan

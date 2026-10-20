@@ -75,9 +75,17 @@ int Mascota::bobbing() const {
     return (triangular / 2) - 2; // onda suave, entre -2 y +1 px
 }
 
-void Mascota::dibujar() {
-    int alto = TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT - CONTENT_TOP;
-    display->fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alto, COLOR_BG);
+void Mascota::dibujar(bool limpiarTodo) {
+    if (limpiarTodo) {
+        // Solo hace falta al entrar a esta pantalla (para tapar lo que
+        // haya quedado de la pantalla anterior). En los redibujados de
+        // animacion, dibujarEncabezado() y dibujarSprite() ya limpian
+        // cada uno su propia zona - repetir un borrado de toda la
+        // franja ademas de eso solo suma un parpadeo mas grande sin
+        // necesidad.
+        int alto = TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT - CONTENT_TOP;
+        display->fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alto, COLOR_BG);
+    }
     dibujarEncabezado();
     dibujarSprite();
 }
@@ -189,8 +197,19 @@ void Mascota::dibujarSprite() {
     // sprite mismo para no dejar restos del frame anterior.
     display->fillRect(x - 10, spriteY - 40, MASCOTA_W + 100, MASCOTA_H + 50, COLOR_BG);
 
+    // El array RGB565 esta generado como un entero de 16 bits comun
+    // (el que arma el script de conversion), pero TFT_eSPI por defecto
+    // asume que pushImage() recibe los bytes ya invertidos para la
+    // transferencia SPI (_swapBytes = false de entrada). Sin este
+    // setSwapBytes(true) el chip manda los 2 bytes de cada pixel al
+    // reves y los colores salen todos mezclados/con ruido en pantalla,
+    // que es justo lo que se vio en la placa. Lo prendo solo para este
+    // pushImage puntual y lo dejo como estaba despues, para no afectar
+    // el resto de los dibujos de esta pantalla (texto, barras, etc).
+    display->setSwapBytes(true);
     const uint16_t* sprite = spriteParaEstado(estadoActual, frame2);
     display->pushImage(x, y, MASCOTA_W, MASCOTA_H, sprite, MASCOTA_TRANSPARENT);
+    display->setSwapBytes(false);
 
     // HAPPY y CURIOSA llevan ademas un indicador de texto al costado -
     // SCANNING y SLEEP ya no lo necesitan porque sus frames 2 (el HUD de
