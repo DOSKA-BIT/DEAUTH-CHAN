@@ -2,6 +2,20 @@
 #include "Theme.h"
 #include "MascotaSprite.h"
 
+// Elige cual de los 2 frames de arte real le toca a cada estado. Vive
+// afuera de la clase (no hace falta declararla en el header) igual que
+// escribirTextoEscapado() en Wardriving.cpp.
+static const uint16_t* spriteParaEstado(EstadoMascota estado, bool frame2) {
+    switch (estado) {
+        case ESTADO_IDLE:     return frame2 ? mascotaIdle2     : mascotaIdle1;
+        case ESTADO_HAPPY:    return frame2 ? mascotaHappy2    : mascotaHappy1;
+        case ESTADO_SCANNING: return frame2 ? mascotaScanning2 : mascotaScanning1;
+        case ESTADO_CURIOSA:  return frame2 ? mascotaCuriosa2  : mascotaCuriosa1;
+        case ESTADO_SLEEP:    return frame2 ? mascotaSleep2    : mascotaSleep1;
+        default:              return mascotaIdle1;
+    }
+}
+
 Mascota::Mascota() {
     estadoActual = ESTADO_IDLE;
     estadoAnterior = ESTADO_IDLE;
@@ -138,97 +152,65 @@ void Mascota::dibujarEncabezado() {
 void Mascota::dibujarSprite() {
     int x = spriteX;
     int y = spriteY;
+    unsigned long transcurrido = millis() - estadoStartTime;
 
+    // Cada estado tiene 2 frames de arte real (ver assets/mascota_frames/
+    // y tools/convert_mascota_frames.py). Para HAPPY y CURIOSA, que duran
+    // poco y vuelven solos a IDLE (ver update()), el frame 2 entra a
+    // mitad de camino para que se alcancen a ver las dos poses antes de
+    // que el estado termine. IDLE, SCANNING y SLEEP no tienen limite de
+    // tiempo, asi que ahi alternamos solas cada ~4s via frameAnimacion.
+    bool frame2;
     switch (estadoActual) {
+        case ESTADO_HAPPY:
+            // sonrisa grande primero, ojitos cerrados de contenta despues
+            frame2 = transcurrido > 1500;
+            // ademas un pequeno salto en vez del vaiven lento, para que
+            // se note mas que esta contenta
+            y += ((frameAnimacion % 8) < 4) ? -4 : 0;
+            break;
+        case ESTADO_CURIOSA:
+            // primero pensando (dedo en la mejilla), despues la sorpresa
+            // de la red nueva
+            frame2 = transcurrido > 1000;
+            break;
         case ESTADO_IDLE:
             // el vaiven suave de siempre, de estar tranquila nomas
             y += bobbing();
+            frame2 = (frameAnimacion % 40) >= 20;
             break;
-        case ESTADO_HAPPY:
-            // un pequeno salto en vez del vaiven lento, para que se
-            // note que esta contenta
-            y += ((frameAnimacion % 8) < 4) ? -4 : 0;
-            break;
-        case ESTADO_SCANNING:
-        case ESTADO_CURIOSA:
-        case ESTADO_SLEEP:
-        default:
-            // quieta; lo que se mueve en estos estados es el
-            // indicador de al lado, no el sprite en si
+        default: // SCANNING, SLEEP
+            frame2 = (frameAnimacion % 40) >= 20;
             break;
     }
 
     // El sprite tiene fondo transparente y se puede mover (bobbing,
     // salto), asi que hay que limpiar una zona mas grande que el
-    // sprite mismo para no dejar restos del frame anterior ni de los
-    // indicadores (antena, zZz) que se dibujan arriba/al costado.
+    // sprite mismo para no dejar restos del frame anterior.
     display->fillRect(x - 10, spriteY - 40, MASCOTA_W + 100, MASCOTA_H + 50, COLOR_BG);
 
-    display->pushImage(x, y, MASCOTA_W, MASCOTA_H, mascotaRGB565, MASCOTA_TRANSPARENT);
+    const uint16_t* sprite = spriteParaEstado(estadoActual, frame2);
+    display->pushImage(x, y, MASCOTA_W, MASCOTA_H, sprite, MASCOTA_TRANSPARENT);
 
-    // El sprite en si es un dibujo fijo (ya no hay una pose distinta
-    // por estado como con el arte a mano de antes), asi que un
-    // indicador chiquito al lado es lo que le avisa al usuario que
-    // esta pasando, ademas de la pildora de estado de arriba.
-    int indicadorX = x + MASCOTA_W + 10;
-    int indicadorY = y + MASCOTA_H / 2 - 10;
-
-    switch (estadoActual) {
-        case ESTADO_HAPPY:
-            display->setTextColor(COLOR_ACCENT, COLOR_BG);
-            display->setTextFont(2);
-            display->setCursor(indicadorX, indicadorY);
-            display->print("WII!");
-            display->setTextFont(1);
-            break;
-
-        case ESTADO_CURIOSA:
-            // Antes esta cara era la de "ataque" (enojada, con rayos).
-            // Ahora es solo el signo de pregunta, para cuando aparece
-            // una red que no estaba en el historial. Nada de rayos ni
-            // caras de bronca, total la mascota ya no ataca nada.
-            display->setTextColor(COLOR_WARN, COLOR_BG);
-            display->setTextFont(2);
-            display->setCursor(indicadorX, indicadorY);
-            display->print("?");
-            display->setTextFont(1);
-            break;
-
-        case ESTADO_SCANNING: {
-            // antena/radar simple barriendo de un lado al otro
-            // mientras busca redes
-            int offset = (frameAnimacion % 8);
-            if (offset > 4) offset = 8 - offset;
-            int puntaX = x + MASCOTA_W / 2 - 12 + offset * 6;
-            display->drawLine(x + MASCOTA_W / 2, spriteY - 4, puntaX, spriteY - 20, COLOR_DANGER);
-            display->fillCircle(puntaX, spriteY - 22, 3, COLOR_DANGER);
-            break;
-        }
-
-        case ESTADO_SLEEP: {
-            int zOffset = (frameAnimacion % 16);
-            display->setTextColor(COLOR_SLEEP_BORDE, COLOR_BG);
-            display->setTextFont(2);
-
-            display->setCursor(x + MASCOTA_W - 10, y - 10 - zOffset);
-            display->print("z");
-
-            if (zOffset > 5) {
-                display->setCursor(x + MASCOTA_W + 2, y - 22 - zOffset + 5);
-                display->print("Z");
-            }
-
-            if (zOffset > 10) {
-                display->setCursor(x + MASCOTA_W + 16, y - 34 - zOffset + 10);
-                display->print("Z");
-            }
-
-            display->setTextFont(1);
-            break;
-        }
-
-        default:
-            break;
+    // HAPPY y CURIOSA llevan ademas un indicador de texto al costado -
+    // SCANNING y SLEEP ya no lo necesitan porque sus frames 2 (el HUD de
+    // escaneo y las "zZz") ya traen ese detalle dibujado en el arte.
+    if (estadoActual == ESTADO_HAPPY) {
+        display->setTextColor(COLOR_ACCENT, COLOR_BG);
+        display->setTextFont(2);
+        display->setCursor(x + MASCOTA_W + 10, y + MASCOTA_H / 2 - 10);
+        display->print("WII!");
+        display->setTextFont(1);
+    } else if (estadoActual == ESTADO_CURIOSA) {
+        // Antes esta cara era la de "ataque" (enojada, con rayos). Ahora
+        // es solo curiosidad, para cuando aparece una red que no estaba
+        // en el historial. Nada de rayos ni caras de bronca, total la
+        // mascota ya no ataca nada.
+        display->setTextColor(COLOR_WARN, COLOR_BG);
+        display->setTextFont(2);
+        display->setCursor(x + MASCOTA_W + 10, y + MASCOTA_H / 2 - 10);
+        display->print("?");
+        display->setTextFont(1);
     }
 }
 
@@ -251,22 +233,29 @@ void Mascota::tocar(int tx, int ty) {
 uint8_t Mascota::firmaVisual() const {
     switch (estadoActual) {
         case ESTADO_IDLE:
-            // Antes esto solo distinguia "parpadeando" de "no", pero
-            // ahora la cara tambien se balancea sola, asi que hace
-            // falta un numero que cambie en cada tick para que el
-            // vaiven se vea fluido y no a los saltos.
-            return frameAnimacion % 16;
+            // El vaiven (bobbing) cambia en cada tick y el frame cada
+            // ~4s - frameAnimacion ya cambia en cada tick, asi que
+            // devolverlo tal cual alcanza para detectar cualquiera de
+            // los dos cambios.
+            return frameAnimacion;
+        case ESTADO_HAPPY: {
+            // el salto necesita redibujar en cada tick (si no se queda
+            // pegada en el aire o en el piso), y ademas hay que
+            // detectar el cambio de frame a mitad de los 3s que dura
+            bool frame2 = (millis() - estadoStartTime) > 1500;
+            uint8_t salto = frameAnimacion % 8;
+            return (uint8_t)((frame2 ? 128 : 0) | salto);
+        }
+        case ESTADO_CURIOSA:
+            // pose fija dentro de cada mitad - solo cambia al pasar el
+            // segundo del medio, o al entrar/salir del estado
+            return (millis() - estadoStartTime) > 1000 ? 1 : 0;
         case ESTADO_SCANNING:
-            return frameAnimacion % 8;
-        case ESTADO_HAPPY:
-            // el salto de "contenta" tambien necesita redibujar en
-            // cada tick, si no se queda pegada en el aire o en el piso
-            return frameAnimacion % 8;
         case ESTADO_SLEEP:
-            return frameAnimacion % 16;
+            // sin limite de tiempo fijo; solo cambia cuando toca
+            // alternar de frame cada ~4s
+            return (frameAnimacion % 40) / 20;
         default:
-            // CURIOSA es una pose fija, solo cambia al entrar o salir
-            // del estado.
             return 0;
     }
 }
