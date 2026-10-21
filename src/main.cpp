@@ -122,14 +122,17 @@ struct Herramienta {
     int y, h; // se calculan en calcularLayoutHerramientas()
 };
 
+// Nombres en mayuscula a proposito: es parte de la estetica de lista
+// de terminal (numerada, monocromatica) que reemplaza a las tarjetas
+// redondeadas de antes - ver dibujarPantallaHerramientas().
 Herramienta herramientas[] = {
-    {"Escanear", "Buscar redes WiFi cerca",         SCREEN_SCAN,     0, 0},
-    {"Stats",    "Memoria de redes ya vistas",       SCREEN_STATS,    0, 0},
-    {"Wardrive", "Guardar ubicacion + redes en SD",  SCREEN_WARDRIVE, 0, 0},
-    {"Config",   "Datos de la placa y la SD",        SCREEN_CONFIG,   0, 0},
-    {"Conocidas", "Redes guardadas, por senial",     SCREEN_CONOCIDAS, 0, 0},
-    {"Eventos",   "Historial de esta sesion",        SCREEN_EVENTOS,   0, 0},
-    {"Monitor",   "Deauth/disassoc detectados",       SCREEN_MONITOR,   0, 0},
+    {"ESCANEAR", "Buscar redes WiFi cerca",         SCREEN_SCAN,     0, 0},
+    {"STATS",    "Memoria de redes ya vistas",       SCREEN_STATS,    0, 0},
+    {"WARDRIVE", "Guardar ubicacion + redes en SD",  SCREEN_WARDRIVE, 0, 0},
+    {"CONFIG",   "Datos de la placa y la SD",        SCREEN_CONFIG,   0, 0},
+    {"CONOCIDAS", "Redes guardadas, por senial",     SCREEN_CONOCIDAS, 0, 0},
+    {"EVENTOS",   "Historial de esta sesion",        SCREEN_EVENTOS,   0, 0},
+    {"MONITOR",   "Deauth/disassoc detectados",       SCREEN_MONITOR,   0, 0},
 };
 const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0]);
 
@@ -164,11 +167,13 @@ void dibujarMenuBotones() {
         // otra pantalla (la lista de herramientas y cada herramienta
         // en si), total todas esas viven del lado de "herramientas".
         bool activo = (i == 0) ? (pantallaActual == SCREEN_MAIN) : (pantallaActual != SCREEN_MAIN);
+        // Esquinas cuadradas (antes redondeadas) para que combine con
+        // la estetica de lista/terminal del resto del firmware.
         uint16_t colorFondo = activo ? COLOR_ACCENT : COLOR_PANEL;
         uint16_t colorTexto = activo ? COLOR_BG : COLOR_TEXT_DIM;
-        tft.fillRoundRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, 6, colorFondo);
+        tft.fillRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, colorFondo);
         if (!activo) {
-            tft.drawRoundRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, 6, COLOR_ACCENT_DIM);
+            tft.drawRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, COLOR_ACCENT_DIM);
         }
         tft.setTextColor(colorTexto, colorFondo);
         tft.setTextFont(1);
@@ -191,20 +196,32 @@ int alturaListado() {
 void dibujarPantallaHerramientas() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
 
+    // Lista numerada estilo terminal (Pwnagotchi/Flipper) en vez de
+    // las tarjetas redondeadas de antes: numero + nombre en una linea,
+    // descripcion chiquita debajo, y una linea fina separando cada
+    // fila en vez de un recuadro por item. Mas liviano de dibujar
+    // ademas (nada de fillRoundRect por fila), que viene bien porque
+    // esta pantalla se repinta entera cada vez que cambia el estado de
+    // la mascota en el encabezado.
     for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
         Herramienta& h = herramientas[i];
-        tft.fillRoundRect(8, h.y, TFT_PANEL_WIDTH - 16, h.h, 8, COLOR_PANEL);
-        tft.drawRoundRect(8, h.y, TFT_PANEL_WIDTH - 16, h.h, 8, COLOR_ACCENT_DIM);
 
-        tft.setTextColor(COLOR_TEXT, COLOR_PANEL);
+        char numero[4];
+        snprintf(numero, sizeof(numero), "%02d", i + 1);
+
+        tft.setTextColor(COLOR_TEXT, COLOR_BG);
         tft.setTextFont(2);
-        tft.setCursor(18, h.y + 6);
+        tft.setCursor(10, h.y + 4);
+        tft.print(numero);
+        tft.print(' ');
         tft.print(h.nombre);
         tft.setTextFont(1);
 
-        tft.setTextColor(COLOR_TEXT_DIM, COLOR_PANEL);
-        tft.setCursor(18, h.y + 28);
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(36, h.y + h.h - 14);
         tft.print(h.descripcion);
+
+        tft.drawFastHLine(6, h.y + h.h - 2, TFT_PANEL_WIDTH - 12, COLOR_ACCENT_DIM);
     }
 
     // Espacio de sobra abajo de la lista para cuando se agreguen mas
@@ -977,7 +994,15 @@ void loop() {
     // redibuja una sola vez, cuando entras a ellas o cuando cambia
     // algo que de verdad hay que mostrar (como un escaneo terminado).
     bool enPantallaPrincipal = (pantallaActual == SCREEN_MAIN);
+    // Dos chequeos separados a proposito: la cara grande anima sola
+    // (bobbing, cambio de frame) y necesita redibujarse cada ~200ms
+    // mientras estamos en la pantalla principal, pero el encabezado NO
+    // tiene nada que se mueva solo - antes usaba el mismo chequeo que
+    // la cara grande, y por eso la franja de arriba parpadeaba en
+    // TODAS las pantallas cada vez que a la mascota le tocaba animar,
+    // no solo cuando el texto que muestra cambiaba de verdad.
     bool mascotaCambio = mascota.necesitaRedibujar();
+    bool encabezadoCambio = mascota.necesitaRedibujarEncabezado();
 
     if (cambioPantalla) {
         dibujarMenuBotones();
@@ -987,11 +1012,12 @@ void loop() {
         // Esta pantalla ES la mascota, no hay texto de bienvenida
         // compitiendo por el mismo espacio: antes se dibujaban los
         // dos en la misma franja, uno tapando al otro.
-        if (cambioPantalla || mascotaCambio) {
+        if (cambioPantalla || mascotaCambio || encabezadoCambio) {
             // El borrado completo de la franja solo hace falta al
             // entrar a esta pantalla; en los redibujados de animacion
-            // (mascotaCambio solo) alcanza con que la mascota limpie
-            // su propia zona, si no la pantalla parpadea de mas.
+            // (mascotaCambio/encabezadoCambio solos) alcanza con que
+            // la mascota limpie su propia zona, si no la pantalla
+            // parpadea de mas.
             mascota.dibujar(cambioPantalla);
         }
     } else {
@@ -999,8 +1025,11 @@ void loop() {
         // grande (ese lugar lo usa el contenido de la pantalla), pero
         // la franja de arriba con su estado se mantiene igual en
         // todos lados para no perderle la pista mientras mirás otra
-        // cosa.
-        if (cambioPantalla || mascotaCambio) {
+        // cosa. Ojo: acá se chequea SOLO encabezadoCambio, no
+        // mascotaCambio - si no, esta franja parpadearia en Escaneo,
+        // Stats, Wardrive, etc cada vez que la cara grande (que ni se
+        // ve en estas pantallas) tiene un tick de animacion.
+        if (cambioPantalla || encabezadoCambio) {
             mascota.dibujarEncabezado();
         }
         if (contenidoSucio) {
