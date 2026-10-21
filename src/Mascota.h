@@ -37,12 +37,23 @@ public:
     int getRedesNuevas() { return redesNuevas; }
     int getRedesEncontradas() { return redesEncontradas; }
 
-    // Dice si hay que volver a dibujar la mascota: no cada vez que pasa
-    // un tick de animacion, sino solo cuando lo que se ve en pantalla
-    // cambiaria de verdad. Guarda internamente la ultima "firma visual"
-    // para comparar, asi que hay que llamarlo una sola vez por vuelta
-    // del loop (no sirve para consultar sin consumir el cambio).
+    // Dice si hay que volver a dibujar la CARA GRANDE (solo tiene
+    // sentido en la pantalla principal): cambia en cada tick de
+    // animacion (bobbing, salto, cambio de frame). Guarda internamente
+    // la ultima "firma visual" para comparar, asi que hay que llamarlo
+    // una sola vez por vuelta del loop.
     bool necesitaRedibujar();
+
+    // Dice si hay que volver a dibujar el ENCABEZADO (la franja de
+    // arriba con REDES/NUEVAS y la pildora de estado). A diferencia de
+    // necesitaRedibujar(), esto NO seria cada tick de animacion - el
+    // encabezado no tiene nada que se mueva solo, asi que solo hace
+    // falta repintarlo cuando el texto que muestra realmente cambio
+    // (cambio de estado, redes nuevas o encontradas). Antes el
+    // encabezado se repintaba cada vez que la cara grande necesitaba
+    // animarse, lo que lo hacia parpadear en TODAS las pantallas
+    // (no solo en la principal) cada ~200ms sin necesidad.
+    bool necesitaRedibujarEncabezado();
 
 private:
     TFT_eSPI* display;
@@ -57,6 +68,13 @@ private:
     EstadoMascota estadoFirmaAnterior;
     uint8_t firmaAnterior;
     uint8_t firmaVisual() const;
+
+    // Ultimos valores con los que se dibujo el encabezado, para
+    // detectar cuando hace falta repintarlo (ver
+    // necesitaRedibujarEncabezado() arriba).
+    EstadoMascota estadoEncabezadoAnterior;
+    int redesNuevasEncabezadoAnterior;
+    int redesEncontradasEncabezadoAnterior;
 
     // El sprite (ver MascotaSprite.h) se dibuja centrado segun el
     // ancho real de la pantalla (240 en la 2.8/2.4", mas ancho en las

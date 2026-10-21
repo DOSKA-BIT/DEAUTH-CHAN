@@ -28,6 +28,9 @@ Mascota::Mascota() {
     spriteY = CONTENT_TOP + 60;
     estadoFirmaAnterior = ESTADO_COUNT; // valor invalido a proposito, para forzar el primer redibujado
     firmaAnterior = 255;
+    estadoEncabezadoAnterior = ESTADO_COUNT; // idem, fuerza el primer dibujo del encabezado
+    redesNuevasEncabezadoAnterior = -1;
+    redesEncontradasEncabezadoAnterior = -1;
 }
 
 void Mascota::init(TFT_eSPI* tft) {
@@ -284,6 +287,24 @@ bool Mascota::necesitaRedibujar() {
     if (estadoActual != estadoFirmaAnterior || firma != firmaAnterior) {
         estadoFirmaAnterior = estadoActual;
         firmaAnterior = firma;
+        return true;
+    }
+    return false;
+}
+
+bool Mascota::necesitaRedibujarEncabezado() {
+    // El encabezado no tiene nada que se anime solo (ni bobbing ni
+    // cambio de frame) - lo unico que puede cambiar es el texto/color
+    // que muestra, asi que comparamos esos valores en vez de la firma
+    // visual de la cara grande. Esto es lo que evita que la franja de
+    // arriba parpadee en TODAS las pantallas cada vez que la mascota
+    // tiene un tick de animacion para su propia cara.
+    if (estadoActual != estadoEncabezadoAnterior ||
+        redesNuevas != redesNuevasEncabezadoAnterior ||
+        redesEncontradas != redesEncontradasEncabezadoAnterior) {
+        estadoEncabezadoAnterior = estadoActual;
+        redesNuevasEncabezadoAnterior = redesNuevas;
+        redesEncontradasEncabezadoAnterior = redesEncontradas;
         return true;
     }
     return false;
