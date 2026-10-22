@@ -88,6 +88,17 @@ enum MenuScreen {
 };
 MenuScreen pantallaActual = SCREEN_MAIN;
 
+// Destello al tocar una fila de la lista de Herramientas: como esto es
+// tactil (no hay joystick ni cursor que se mueva solo), la unica forma
+// de que la barra de "seleccionado" signifique algo real es mostrarla
+// un instante justo donde tocaste, antes de entrar a esa pantalla - en
+// vez de fingir un cursor fijo que no se mueve nunca. -1 = no hay
+// ningun destello activo.
+int filaDestellada = -1;
+unsigned long momentoDestello = 0;
+const unsigned long DESTELLO_MS = 120; // bien cortito, solo para que se note el toque
+MenuScreen destinoPendiente = SCREEN_MAIN;
+
 struct Boton {
     int x, y, w, h;
     const char* label;
@@ -209,7 +220,21 @@ void dibujarPantallaHerramientas() {
         char numero[4];
         snprintf(numero, sizeof(numero), "%02d", i + 1);
 
-        tft.setTextColor(COLOR_TEXT, COLOR_BG);
+        // La fila recien tocada se dibuja invertida (fondo celeste,
+        // texto negro) como un destello breve de feedback tactil - ver
+        // el comentario de filaDestellada arriba, junto a su
+        // declaracion. El resto de las filas van con los colores
+        // normales.
+        bool destellada = (i == filaDestellada);
+        uint16_t colorFondoFila = destellada ? COLOR_ACCENT : COLOR_BG;
+        uint16_t colorTextoFila = destellada ? COLOR_BG : COLOR_TEXT;
+        uint16_t colorTextoDimFila = destellada ? COLOR_BG : COLOR_TEXT_DIM;
+
+        if (destellada) {
+            tft.fillRect(0, h.y, TFT_PANEL_WIDTH, h.h, COLOR_ACCENT);
+        }
+
+        tft.setTextColor(colorTextoFila, colorFondoFila);
         tft.setTextFont(2);
         tft.setCursor(10, h.y + 4);
         tft.print(numero);
@@ -217,7 +242,7 @@ void dibujarPantallaHerramientas() {
         tft.print(h.nombre);
         tft.setTextFont(1);
 
-        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setTextColor(colorTextoDimFila, colorFondoFila);
         tft.setCursor(36, h.y + h.h - 14);
         tft.print(h.descripcion);
 
@@ -759,7 +784,14 @@ void manejarToque(int x, int y) {
             for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
                 Herramienta& h = herramientas[i];
                 if (y >= h.y && y <= h.y + h.h) {
-                    pantallaActual = h.destino;
+                    // No navegamos todavia: primero se ve el destello
+                    // (fila invertida) como feedback de que el toque se
+                    // registro, y recien cuando pasa DESTELLO_MS (ver
+                    // loop()) se entra de verdad a la pantalla destino.
+                    filaDestellada = i;
+                    momentoDestello = millis();
+                    destinoPendiente = h.destino;
+                    contenidoSucio = true;
                     return;
                 }
             }
@@ -973,6 +1005,16 @@ void loop() {
                 dibujarListaRedes();
             }
         }
+    }
+
+    // Si hay un destello de toque pendiente en Herramientas, se espera
+    // sin bloquear (nada de delay()) a que pasen los DESTELLO_MS antes
+    // de entrar de verdad a la pantalla elegida - asi da tiempo a que
+    // se vea la fila invertida en vez de saltar directo.
+    if (filaDestellada >= 0 && millis() - momentoDestello >= DESTELLO_MS) {
+        filaDestellada = -1;
+        pantallaActual = destinoPendiente;
+        contenidoSucio = true;
     }
 
     static MenuScreen pantallaAnterior = (MenuScreen)-1;

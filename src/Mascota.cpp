@@ -116,33 +116,37 @@ uint16_t Mascota::colorEstado() const {
 }
 
 void Mascota::dibujarEncabezado() {
-    display->fillRect(0, 0, TFT_PANEL_WIDTH, 32, COLOR_PANEL);
+    // Sin panel relleno de fondo (antes era un bloque COLOR_PANEL) -
+    // en la estetica de terminal todo va sobre el mismo negro, con una
+    // linea fina como unica separacion.
+    display->fillRect(0, 0, TFT_PANEL_WIDTH, 32, COLOR_BG);
     display->drawFastHLine(0, 32, TFT_PANEL_WIDTH, COLOR_ACCENT_DIM);
 
     display->setTextFont(1);
     display->setTextSize(1);
 
-    display->setTextColor(COLOR_TEXT_DIM, COLOR_PANEL);
+    display->setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     display->setCursor(6, 5);
     display->print("REDES");
-    display->setTextColor(COLOR_TEXT, COLOR_PANEL);
+    display->setTextColor(COLOR_TEXT, COLOR_BG);
     display->setCursor(6, 16);
     display->print(redesEncontradas);
 
-    display->setTextColor(COLOR_TEXT_DIM, COLOR_PANEL);
+    display->setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     display->setCursor(60, 5);
     display->print("NUEVAS");
-    display->setTextColor(COLOR_WARN, COLOR_PANEL);
+    display->setTextColor(COLOR_WARN, COLOR_BG);
     display->setCursor(60, 16);
     display->print(redesNuevas);
 
-    // Etiqueta de estado a la derecha, como una pildora de color para
-    // que se note de un vistazo sin tener que leer el texto.
+    // Etiqueta de estado a la derecha: antes era una pildora redondeada
+    // rellena, ahora un bloque cuadrado invertido (fondo celeste, texto
+    // negro) para que combine con el resto de la estetica de terminal.
     uint16_t color = colorEstado();
     const char* nombre = nombreEstado();
     int anchoPildora = 6 + strlen(nombre) * 6;
     int xPildora = TFT_PANEL_WIDTH - anchoPildora - 8;
-    display->fillRoundRect(xPildora, 8, anchoPildora, 16, 4, color);
+    display->fillRect(xPildora, 8, anchoPildora, 16, color);
     display->setTextColor(COLOR_BG, color);
     display->setCursor(xPildora + 3, 12);
     display->print(nombre);
