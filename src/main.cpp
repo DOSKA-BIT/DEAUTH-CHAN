@@ -149,15 +149,27 @@ const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0])
 
 int alturaListado(); // definida mas abajo, hace falta antes aca
 
+// Alto reservado abajo de la lista de Herramientas para el renglon de
+// ayuda (muestra la descripcion de la fila recien tocada) y la barra
+// solida decorativa, calcado del layout de PORKCHOP/Marauder que
+// mando el usuario de referencia: lista de una sola linea por item,
+// sin descripcion ni separador en cada fila, y el detalle vive abajo
+// de todo en vez de repetirse en cada renglon.
+const int HERR_ALTO_PIE = 34;
+
 void calcularLayoutHerramientas() {
     // El alto de cada fila se calcula segun cuantas herramientas haya
     // para que entren todas sin superponerse, en vez de tener un
     // numero fijo que se rompe el dia que se agrega una quinta o
-    // sexta herramienta (como paso al sumar "Conocidas").
-    int espacioDisponible = alturaListado() - 12;
-    int gap = 4;
+    // sexta herramienta (como paso al sumar "Conocidas"). Filas de una
+    // sola linea (antes tenian nombre + descripcion + separador, ahora
+    // la descripcion se muestra aparte, en el renglon de ayuda de
+    // abajo) asi que son mas bajas y entran mas sin apretarse.
+    int espacioDisponible = alturaListado() - 12 - HERR_ALTO_PIE;
+    int gap = 2;
     int alto = (espacioDisponible - gap * (CANTIDAD_HERRAMIENTAS - 1)) / CANTIDAD_HERRAMIENTAS;
-    if (alto > 50) alto = 50; // no hace falta que crezcan de mas si hay pocas
+    if (alto > 28) alto = 28; // no hace falta que crezcan de mas si hay pocas
+    if (alto < 18) alto = 18; // tampoco que se aplasten si hay muchas
 
     int y = CONTENT_TOP + 8;
     for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
@@ -207,13 +219,13 @@ int alturaListado() {
 void dibujarPantallaHerramientas() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
 
-    // Lista numerada estilo terminal (Pwnagotchi/Flipper) en vez de
-    // las tarjetas redondeadas de antes: numero + nombre en una linea,
-    // descripcion chiquita debajo, y una linea fina separando cada
-    // fila en vez de un recuadro por item. Mas liviano de dibujar
-    // ademas (nada de fillRoundRect por fila), que viene bien porque
-    // esta pantalla se repinta entera cada vez que cambia el estado de
-    // la mascota en el encabezado.
+    // Lista de una sola linea por item (numero + nombre, nada de
+    // descripcion ni separador en cada fila) calcada del menu de
+    // PORKCHOP/Marauder que mando el usuario de referencia. La
+    // descripcion de cada herramienta se muestra aparte, en el
+    // renglon de ayuda de mas abajo, solo mientras esa fila esta
+    // destellando por el toque - asi la lista en si queda tan limpia
+    // como la de la foto.
     for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
         Herramienta& h = herramientas[i];
 
@@ -228,7 +240,6 @@ void dibujarPantallaHerramientas() {
         bool destellada = (i == filaDestellada);
         uint16_t colorFondoFila = destellada ? COLOR_ACCENT : COLOR_BG;
         uint16_t colorTextoFila = destellada ? COLOR_BG : COLOR_TEXT;
-        uint16_t colorTextoDimFila = destellada ? COLOR_BG : COLOR_TEXT_DIM;
 
         if (destellada) {
             tft.fillRect(0, h.y, TFT_PANEL_WIDTH, h.h, COLOR_ACCENT);
@@ -236,30 +247,34 @@ void dibujarPantallaHerramientas() {
 
         tft.setTextColor(colorTextoFila, colorFondoFila);
         tft.setTextFont(2);
-        tft.setCursor(10, h.y + 4);
+        tft.setCursor(10, h.y + (h.h / 2) - 7);
         tft.print(numero);
         tft.print(' ');
         tft.print(h.nombre);
-        tft.setTextFont(1);
-
-        tft.setTextColor(colorTextoDimFila, colorFondoFila);
-        tft.setCursor(36, h.y + h.h - 14);
-        tft.print(h.descripcion);
-
-        tft.drawFastHLine(6, h.y + h.h - 2, TFT_PANEL_WIDTH - 12, COLOR_ACCENT_DIM);
     }
 
-    // Espacio de sobra abajo de la lista para cuando se agreguen mas
-    // herramientas - por ahora solo un cartelito avisando que hay
-    // lugar, para que no quede una franja vacia sin explicacion.
-    if (CANTIDAD_HERRAMIENTAS > 0) {
-        int yHint = herramientas[CANTIDAD_HERRAMIENTAS - 1].y + herramientas[CANTIDAD_HERRAMIENTAS - 1].h + 10;
-        if (yHint < CONTENT_TOP + alturaListado() - 10) {
-            tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-            tft.setCursor(14, yHint);
-            tft.print("+ mas herramientas pronto");
-        }
+    // Renglon de ayuda, debajo de toda la lista: mientras una fila
+    // esta destellando muestra SU descripcion (asi no hace falta
+    // repetirla en cada item, como en la referencia), y el resto del
+    // tiempo un recordatorio generico de que hay que tocar una fila.
+    int yAyuda = CONTENT_TOP + alturaListado() - HERR_ALTO_PIE + 6;
+    tft.fillRect(0, yAyuda - 4, TFT_PANEL_WIDTH, 16, COLOR_BG);
+    tft.setTextFont(1);
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(10, yAyuda);
+    if (filaDestellada >= 0 && filaDestellada < CANTIDAD_HERRAMIENTAS) {
+        tft.print(herramientas[filaDestellada].descripcion);
+    } else {
+        tft.print("Toca una herramienta para entrar");
     }
+
+    // Barra solida decorativa al pie de la pantalla, igual que la
+    // franja blanca de abajo de todo en la foto de referencia - no
+    // representa ningun dato (PORKCHOP la usa para bateria/señal, acá
+    // no tenemos ese sensor), es puramente un cierre visual para la
+    // pantalla.
+    int yBarra = CONTENT_TOP + alturaListado() - 8;
+    tft.fillRect(6, yBarra, TFT_PANEL_WIDTH - 12, 5, COLOR_ACCENT);
 }
 
 void dibujarPantallaConocidas() {
