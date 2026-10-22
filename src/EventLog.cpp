@@ -2,20 +2,31 @@
 #include "boards/BoardConfig.h"
 
 void EventLog::begin() {
+    // Antes esto dejaba "logFile" abierto toda la sesion y registrar()
+    // escribia directamente ahi. El problema: dibujarPantallaConfig()
+    // y dibujarPantallaWardrive() hacen SD.end()/SD.begin() cada vez
+    // que se dibujan (para chequear "SD: OK" o contar lineas del CSV),
+    // y exportKML() tambien - ese SD.end() desmonta la tarjeta y
+    // invalida cualquier File que haya quedado abierto de antes.
+    // Resultado: apenas se visitaba Config o Wardrive una vez, los
+    // eventos siguientes dejaban de anotarse en eventos.csv, sin
+    // ningun error visible (logFile.print() en un handle invalido no
+    // crashea, simplemente no escribe nada). Ahora cada registrar()
+    // abre, escribe y cierra de nuevo (ver mas abajo), igual que ya
+    // hace Learning::guardarEnSD() - mas remontajes de SD, pero
+    // ninguno queda "viejo" esperando a romperse con el proximo toque
+    // a otra pantalla.
     SD.end();
-    sdOk = SD.begin(SD_CS_PIN);
-    if (!sdOk) {
+    if (!SD.begin(SD_CS_PIN)) {
         Serial.println("SD no disponible para el log de eventos");
         return;
     }
 
-    logFile = SD.open("/eventos.csv", FILE_APPEND);
-    if (!logFile) {
-        logFile = SD.open("/eventos.csv", FILE_WRITE);
-        if (logFile) {
-            logFile.println("timestamp,evento");
-            logFile.close();
-            logFile = SD.open("/eventos.csv", FILE_APPEND);
+    if (!SD.exists("/eventos.csv")) {
+        File f = SD.open("/eventos.csv", FILE_WRITE);
+        if (f) {
+            f.println("timestamp,evento");
+            f.close();
         }
     }
 }
@@ -51,12 +62,19 @@ void EventLog::registrar(const char* texto, const GPSData* pos) {
 
     if (numEventos < MAX_EVENTOS_RAM) numEventos++;
 
-    if (sdOk && logFile) {
-        logFile.print(eventos[0].timestamp);
-        logFile.print(",");
-        logFile.println(texto);
-        logFile.flush();
-    }
+    // Se remonta, abre, escribe y cierra en cada llamada (ver el
+    // comentario largo en begin()) en vez de reusar un File que haya
+    // quedado abierto de antes - asi nunca importa si otra pantalla
+    // desmonto la SD entre medio.
+    SD.end();
+    if (!SD.begin(SD_CS_PIN)) return;
+    File f = SD.open("/eventos.csv", FILE_APPEND);
+    if (!f) return;
+    f.print(eventos[0].timestamp);
+    f.print(",");
+    f.println(texto);
+    f.flush();
+    f.close();
 }
 
 EventoLog* EventLog::getEventos(int& count) {

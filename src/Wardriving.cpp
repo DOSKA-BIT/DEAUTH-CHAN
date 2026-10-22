@@ -2,26 +2,35 @@
 #include "boards/BoardConfig.h"
 
 void Wardriving::begin() {
+    // Antes esto dejaba "csvFile" abierto toda la sesion y
+    // saveNetwork() escribia directamente ahi. El problema:
+    // dibujarPantallaConfig() y dibujarPantallaWardrive() hacen
+    // SD.end()/SD.begin() cada vez que se dibujan (para chequear
+    // "SD: OK" o contar lineas del CSV), y exportKML() tambien - ese
+    // SD.end() desmonta la tarjeta y invalida cualquier File que haya
+    // quedado abierto de antes. Resultado: apenas se visitaba Config
+    // o Wardrive una vez, las redes de los escaneos siguientes
+    // dejaban de anotarse en wardriving.csv, sin ningun error visible
+    // (escribir en un File invalido no crashea, simplemente no
+    // escribe nada). Ahora cada saveNetwork() abre, escribe y cierra
+    // de nuevo (ver mas abajo), igual que ya hace
+    // Learning::guardarEnSD() - mas remontajes de SD por escaneo, pero
+    // ninguno queda "viejo" esperando a romperse con el proximo toque
+    // a otra pantalla.
     SD.end();
     if (!SD.begin(SD_CS_PIN)) {
         Serial.println("SD no disponible para wardriving");
         return;
     }
 
-    csvFile = SD.open("/wardriving.csv", FILE_APPEND);
-    if (!csvFile) {
-        csvFile = SD.open("/wardriving.csv", FILE_WRITE);
-        ensureHeader();
-        csvFile.close();
-        csvFile = SD.open("/wardriving.csv", FILE_APPEND);
+    if (!SD.exists("/wardriving.csv")) {
+        File f = SD.open("/wardriving.csv", FILE_WRITE);
+        if (f) {
+            f.println("timestamp,ssid,bssid,rssi,channel,encryption,lat,lng,altitude");
+            f.close();
+        }
     }
     Serial.println("Wardriving iniciado");
-}
-
-void Wardriving::ensureHeader() {
-    if (csvFile) {
-        csvFile.println("timestamp,ssid,bssid,rssi,channel,encryption,lat,lng,altitude");
-    }
 }
 
 void Wardriving::setFilterByEncryption(bool enabled, int authMode) {
@@ -30,8 +39,6 @@ void Wardriving::setFilterByEncryption(bool enabled, int authMode) {
 }
 
 void Wardriving::saveNetwork(const RedInfo& red, const GPSData& pos) {
-    if (!csvFile) return;
-
     if (filterEnabled) {
         // RedInfo solo guarda si la red tiene clave o no (un bool), no
         // el modo exacto (WPA/WPA2/etc) - asi que el filtro tampoco
@@ -43,7 +50,19 @@ void Wardriving::saveNetwork(const RedInfo& red, const GPSData& pos) {
         if (quiereAbiertas != esAbierta) return; // no cumple el filtro, se descarta
     }
 
-    csvFile.printf("%s,%s,%02X:%02X:%02X:%02X:%02X:%02X,%d,%d,%d,%.6f,%.6f,%.1f\n",
+    // Se remonta, abre, escribe y cierra en cada llamada (ver el
+    // comentario largo en begin()) en vez de reusar un File que haya
+    // quedado abierto de antes - asi nunca importa si otra pantalla
+    // desmonto la SD entre medio. Esto se llama una vez por red
+    // encontrada al terminar un escaneo (no en cada vuelta del loop),
+    // asi que el costo extra de remontar es chico comparado con
+    // perder datos en silencio.
+    SD.end();
+    if (!SD.begin(SD_CS_PIN)) return;
+    File f = SD.open("/wardriving.csv", FILE_APPEND);
+    if (!f) return;
+
+    f.printf("%s,%s,%02X:%02X:%02X:%02X:%02X:%02X,%d,%d,%d,%.6f,%.6f,%.1f\n",
         pos.valid ? pos.timestamp : "NO_FIX",
         red.ssid,
         red.bssid[0], red.bssid[1], red.bssid[2],
@@ -55,7 +74,8 @@ void Wardriving::saveNetwork(const RedInfo& red, const GPSData& pos) {
         pos.lng,
         pos.altitude
     );
-    csvFile.flush();
+    f.flush();
+    f.close();
 }
 
 // XML no permite & < > " ' sueltos adentro de un texto. Un SSID real

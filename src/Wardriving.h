@@ -21,10 +21,12 @@ public:
     void setFilterByEncryption(bool enabled, int authMode);
 
 private:
-    File csvFile;
+    // Ya no se guarda un File abierto toda la sesion (era "csvFile"
+    // antes) - ver el comentario largo en saveNetwork(), en
+    // Wardriving.cpp, de por que eso hacia que dejaran de guardarse
+    // redes nuevas despues de visitar Config o Wardrive.
     bool filterEnabled = false;
     int filterAuthMode = WIFI_AUTH_OPEN;
-    void ensureHeader();
 };
 
 #endif

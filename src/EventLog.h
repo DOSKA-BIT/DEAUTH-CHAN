@@ -39,8 +39,11 @@ public:
 private:
     EventoLog eventos[MAX_EVENTOS_RAM];
     int numEventos = 0;
-    File logFile;
-    bool sdOk = false;
+
+    // Ya no se guarda un File abierto toda la sesion (era "logFile"
+    // antes) - ver el comentario largo en registrar(), en EventLog.cpp,
+    // de por que eso causaba que dejara de guardarse en la SD despues
+    // de visitar ciertas pantallas.
 };
 
 #endif
