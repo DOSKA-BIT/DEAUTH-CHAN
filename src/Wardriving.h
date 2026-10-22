@@ -20,6 +20,15 @@ public:
 
     void setFilterByEncryption(bool enabled, int authMode);
 
+    // Cuantas redes hay guardadas en wardriving.csv en total (de esta
+    // sesion y las anteriores). Se calcula una vez en begin() y se
+    // actualiza con un ++ en cada saveNetwork() exitoso - no relee el
+    // archivo, asi que llamar esto desde dibujarPantallaWardrive() en
+    // cada redibujado no tiene costo (antes dibujarPantallaWardrive()
+    // leia el CSV entero y remontaba la SD cada vez que se mostraba
+    // esa pantalla).
+    int getContadorRedes() const { return contadorRedes; }
+
 private:
     // Ya no se guarda un File abierto toda la sesion (era "csvFile"
     // antes) - ver el comentario largo en saveNetwork(), en
@@ -27,6 +36,7 @@ private:
     // redes nuevas despues de visitar Config o Wardrive.
     bool filterEnabled = false;
     int filterAuthMode = WIFI_AUTH_OPEN;
+    int contadorRedes = 0;
 };
 
 #endif

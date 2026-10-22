@@ -602,17 +602,13 @@ void dibujarPantallaWardrive() {
 
     tft.setCursor(10, CONTENT_TOP + 75);
     tft.print("Redes guardadas: ");
-    int lineas = 0;
-    SD.end();
-    if (SD.begin(SD_CS_PIN)) {
-        File f = SD.open("/wardriving.csv", FILE_READ);
-        if (f) {
-            while (f.available()) { if (f.read() == '\n') lineas++; }
-            f.close();
-            lineas -= 1;
-        }
-    }
-    tft.print(lineas > 0 ? lineas : 0);
+    // Antes esto releia wardriving.csv entero byte por byte Y
+    // remontaba la SD cada vez que se dibujaba esta pantalla - con un
+    // CSV grande de varias sesiones se iba a poner lento, y de paso
+    // invalidaba cualquier File que otro modulo tuviera abierto de
+    // antes (ver el arreglo en Wardriving.cpp/EventLog.cpp). Ahora
+    // Wardriving ya lleva la cuenta el solo, sin releer nada.
+    tft.print(wardriver.getContadorRedes());
 
     // Filtro de que se guarda: se cicla tocando esta linea. Se guarda
     // en RAM nomas (no en la SD), asi que vuelve a "Todas" en cada

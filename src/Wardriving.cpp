@@ -30,6 +30,27 @@ void Wardriving::begin() {
             f.close();
         }
     }
+
+    // Contamos cuantas redes ya habia guardadas (de esta sesion o de
+    // alguna anterior) una sola vez aca, al arrancar. Antes esto se
+    // hacia leyendo el archivo entero byte por byte, y encima
+    // remontando la SD, cada vez que se DIBUJABA la pantalla de
+    // Wardrive - con un CSV grande de varias sesiones eso se iba a
+    // poner cada vez mas lento, y para colmo invalidaba el File que
+    // mantenian abierto Wardriving/EventLog (ver el comentario de
+    // arriba). Ahora el conteo se hace una vez aca, y de ahi en
+    // adelante saveNetwork() lo actualiza el mismo con un simple ++
+    // (no releyendo nada).
+    contadorRedes = 0;
+    File fConteo = SD.open("/wardriving.csv", FILE_READ);
+    if (fConteo) {
+        while (fConteo.available()) {
+            if (fConteo.read() == '\n') contadorRedes++;
+        }
+        fConteo.close();
+        if (contadorRedes > 0) contadorRedes--; // la linea de encabezado no es una red
+    }
+
     Serial.println("Wardriving iniciado");
 }
 
@@ -76,6 +97,7 @@ void Wardriving::saveNetwork(const RedInfo& red, const GPSData& pos) {
     );
     f.flush();
     f.close();
+    contadorRedes++;
 }
 
 // XML no permite & < > " ' sueltos adentro de un texto. Un SSID real
