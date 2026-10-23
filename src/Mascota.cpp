@@ -116,32 +116,37 @@ uint16_t Mascota::colorEstado() const {
 }
 
 void Mascota::dibujarEncabezado() {
-    // Sin panel relleno de fondo (antes era un bloque COLOR_PANEL) -
-    // en la estetica de terminal todo va sobre el mismo negro, con una
-    // linea fina como unica separacion.
-    display->fillRect(0, 0, TFT_PANEL_WIDTH, 32, COLOR_BG);
+    // Fase 2 del rediseño "herramienta retro": la franja de arriba
+    // ahora es una barra azul intensa bien visible (COLOR_HEADER), en
+    // vez del mismo negro/navy del fondo - calcado de la referencia
+    // que mando el usuario (encabezado "azul intenso" diferenciado
+    // del resto de la pantalla). Como este encabezado es compartido
+    // por TODAS las pantallas (lo llama cada una via
+    // dibujarEncabezado()), este solo cambio ya se nota en el
+    // firmware entero, no solo en la mascota.
+    display->fillRect(0, 0, TFT_PANEL_WIDTH, 32, COLOR_HEADER);
     display->drawFastHLine(0, 32, TFT_PANEL_WIDTH, COLOR_ACCENT_DIM);
 
     display->setTextFont(1);
     display->setTextSize(1);
 
-    display->setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    display->setTextColor(COLOR_TEXT_DIM, COLOR_HEADER);
     display->setCursor(6, 5);
     display->print("REDES");
-    display->setTextColor(COLOR_TEXT, COLOR_BG);
+    display->setTextColor(COLOR_TEXT, COLOR_HEADER);
     display->setCursor(6, 16);
     display->print(redesEncontradas);
 
-    display->setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    display->setTextColor(COLOR_TEXT_DIM, COLOR_HEADER);
     display->setCursor(60, 5);
     display->print("NUEVAS");
-    display->setTextColor(COLOR_WARN, COLOR_BG);
+    display->setTextColor(COLOR_WARN, COLOR_HEADER);
     display->setCursor(60, 16);
     display->print(redesNuevas);
 
-    // Etiqueta de estado a la derecha: antes era una pildora redondeada
-    // rellena, ahora un bloque cuadrado invertido (fondo celeste, texto
-    // negro) para que combine con el resto de la estetica de terminal.
+    // Etiqueta de estado a la derecha: bloque cuadrado relleno con el
+    // color de colorEstado(), texto oscuro encima para que resalte
+    // sobre la barra azul igual que resaltaba sobre el negro antes.
     uint16_t color = colorEstado();
     const char* nombre = nombreEstado();
     int anchoPildora = 6 + strlen(nombre) * 6;
@@ -152,9 +157,7 @@ void Mascota::dibujarEncabezado() {
     display->print(nombre);
 
     // Barra de "actividad": cuanto mas redes nuevas encontro en lo que
-    // va de la sesion, mas llena. Antes esto usaba un modulo que la
-    // hacia vaciarse de golpe cada 20 redes sin ningun motivo, asi que
-    // de paso lo dejo bien.
+    // va de la sesion, mas llena.
     int anchoBarra = TFT_PANEL_WIDTH - 12;
     display->drawRect(6, 26, anchoBarra, 4, COLOR_TEXT_DIM);
     int lleno = redesNuevas * 4;
