@@ -149,13 +149,21 @@ const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0])
 
 int alturaListado(); // definida mas abajo, hace falta antes aca
 
-// Alto reservado abajo de la lista de Herramientas para el renglon de
-// ayuda (muestra la descripcion de la fila recien tocada) y la barra
-// solida decorativa, calcado del layout de PORKCHOP/Marauder que
-// mando el usuario de referencia: lista de una sola linea por item,
-// sin descripcion ni separador en cada fila, y el detalle vive abajo
-// de todo en vez de repetirse en cada renglon.
-const int HERR_ALTO_PIE = 34;
+// Alto que ocupa el titulo de seccion (dibujarTituloSeccion, definida
+// mas abajo junto con alturaListado) incluyendo su linea separadora -
+// las pantallas que lo usan arrancan su propio contenido despues de
+// este offset. Declarado aca arriba porque calcularLayoutHerramientas
+// lo necesita antes de donde vive la funcion que lo dibuja.
+const int ALTO_TITULO_SECCION = 30;
+
+// Alto reservado abajo de CUALQUIER pantalla de Herramientas para el
+// renglon de ayuda (texto chico tipo "TAP=SELEC | <=VOLVER") y la
+// barra solida decorativa, calcado del layout de PORKCHOP/Marauder
+// que mando el usuario de referencia. Antes solo lo usaba la lista de
+// Herramientas (se llamaba HERR_ALTO_PIE); ahora lo usan las 7
+// pantallas via dibujarPieAyuda() (definida mas abajo) para quedar
+// todas parejas.
+const int ALTO_PIE_AYUDA = 34;
 
 void calcularLayoutHerramientas() {
     // El alto de cada fila se calcula segun cuantas herramientas haya
@@ -164,14 +172,16 @@ void calcularLayoutHerramientas() {
     // sexta herramienta (como paso al sumar "Conocidas"). Filas de una
     // sola linea (antes tenian nombre + descripcion + separador, ahora
     // la descripcion se muestra aparte, en el renglon de ayuda de
-    // abajo) asi que son mas bajas y entran mas sin apretarse.
-    int espacioDisponible = alturaListado() - 12 - HERR_ALTO_PIE;
+    // abajo) asi que son mas bajas y entran mas sin apretarse. Arrancan
+    // despues de ALTO_TITULO_SECCION porque ahora esta pantalla tiene
+    // su propio titulo "HERRAMIENTAS" arriba de la lista.
+    int espacioDisponible = alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA;
     int gap = 2;
     int alto = (espacioDisponible - gap * (CANTIDAD_HERRAMIENTAS - 1)) / CANTIDAD_HERRAMIENTAS;
     if (alto > 28) alto = 28; // no hace falta que crezcan de mas si hay pocas
     if (alto < 18) alto = 18; // tampoco que se aplasten si hay muchas
 
-    int y = CONTENT_TOP + 8;
+    int y = CONTENT_TOP + ALTO_TITULO_SECCION;
     for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
         herramientas[i].y = y;
         herramientas[i].h = alto;
@@ -216,8 +226,46 @@ int alturaListado() {
     return TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT - CONTENT_TOP;
 }
 
+// Encabezado de seccion: nombre de la pantalla en grande + una linea
+// fina debajo, calcado del titulo bien visible ("PORKCHOP") de la
+// referencia que mando el usuario. Antes cada pantalla lo hacia (o no)
+// a mano con sus propios numeros sueltos - Stats, Wardrive y Config ya
+// tenian este mismo patron escrito a mano cada una; juntarlo en una
+// sola funcion evita que una pantalla quede con un estilo distinto a
+// las demas el dia de mañana. No toca el encabezado de arriba de todo
+// (REDES/NUEVAS/estado, en Mascota::dibujarEncabezado) - ese es
+// compartido entre todas las pantallas y muestra el estado del
+// dispositivo; este es el titulo de CADA pantalla en particular.
+void dibujarTituloSeccion(const char* titulo) {
+    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
+    tft.setTextFont(2);
+    tft.setCursor(10, CONTENT_TOP + 6);
+    tft.print(titulo);
+    tft.setTextFont(1);
+    tft.drawFastHLine(10, CONTENT_TOP + 24, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
+}
+
+// Pie de ayuda: un renglon de texto chico (dim) + una barra solida de
+// cierre, calcados del "TAP=SELE... <=BACK" + la franja blanca de
+// abajo de todo de la foto de referencia. Las pantallas que lo usan
+// tienen que restarse ALTO_PIE_AYUDA de su propio alto disponible
+// para que el contenido no se les superponga con esto (ver cada
+// pantalla para el ejemplo exacto).
+void dibujarPieAyuda(const char* texto) {
+    int yAyuda = CONTENT_TOP + alturaListado() - ALTO_PIE_AYUDA + 6;
+    tft.fillRect(0, yAyuda - 4, TFT_PANEL_WIDTH, 16, COLOR_BG);
+    tft.setTextFont(1);
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(10, yAyuda);
+    tft.print(texto);
+
+    int yBarra = CONTENT_TOP + alturaListado() - 8;
+    tft.fillRect(6, yBarra, TFT_PANEL_WIDTH - 12, 5, COLOR_ACCENT);
+}
+
 void dibujarPantallaHerramientas() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("HERRAMIENTAS");
 
     // Lista de una sola linea por item (numero + nombre, nada de
     // descripcion ni separador en cada fila) calcada del menu de
@@ -253,38 +301,27 @@ void dibujarPantallaHerramientas() {
         tft.print(h.nombre);
     }
 
-    // Renglon de ayuda, debajo de toda la lista: mientras una fila
-    // esta destellando muestra SU descripcion (asi no hace falta
-    // repetirla en cada item, como en la referencia), y el resto del
-    // tiempo un recordatorio generico de que hay que tocar una fila.
-    int yAyuda = CONTENT_TOP + alturaListado() - HERR_ALTO_PIE + 6;
-    tft.fillRect(0, yAyuda - 4, TFT_PANEL_WIDTH, 16, COLOR_BG);
-    tft.setTextFont(1);
-    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-    tft.setCursor(10, yAyuda);
+    // Pie de ayuda: mientras una fila esta destellando muestra SU
+    // descripcion (asi no hace falta repetirla en cada item, como en
+    // la referencia), y el resto del tiempo un recordatorio generico.
     if (filaDestellada >= 0 && filaDestellada < CANTIDAD_HERRAMIENTAS) {
-        tft.print(herramientas[filaDestellada].descripcion);
+        dibujarPieAyuda(herramientas[filaDestellada].descripcion);
     } else {
-        tft.print("Toca una herramienta para entrar");
+        dibujarPieAyuda("Toca una herramienta para entrar");
     }
-
-    // Barra solida decorativa al pie de la pantalla, igual que la
-    // franja blanca de abajo de todo en la foto de referencia - no
-    // representa ningun dato (PORKCHOP la usa para bateria/señal, acá
-    // no tenemos ese sensor), es puramente un cierre visual para la
-    // pantalla.
-    int yBarra = CONTENT_TOP + alturaListado() - 8;
-    tft.fillRect(6, yBarra, TFT_PANEL_WIDTH - 12, 5, COLOR_ACCENT);
 }
 
 void dibujarPantallaConocidas() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("CONOCIDAS");
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     int total = aprendizaje.getTotalRedesConocidas();
     if (total == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(10, CONTENT_TOP + 20);
+        tft.setCursor(10, top + 10);
         tft.print("Todavia no hay redes guardadas");
+        dibujarPieAyuda("Escanea para empezar a guardar redes");
         return;
     }
 
@@ -307,8 +344,8 @@ void dibujarPantallaConocidas() {
         }
     }
 
-    int maxVisibles = alturaListado() / 20;
-    int yOffset = CONTENT_TOP + 10;
+    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / 20;
+    int yOffset = top + 6;
     int mostradas = (total < maxVisibles) ? total : maxVisibles;
 
     for (int i = 0; i < mostradas; i++) {
@@ -328,31 +365,34 @@ void dibujarPantallaConocidas() {
     }
 
     if (total > mostradas) {
-        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(10, yOffset + 4);
-        tft.print("+ ");
-        tft.print(total - mostradas);
-        tft.print(" mas, ordenadas por senial");
+        char masTexto[32];
+        snprintf(masTexto, sizeof(masTexto), "+ %d mas, por senial", total - mostradas);
+        dibujarPieAyuda(masTexto);
+    } else {
+        dibujarPieAyuda("Ordenadas por senial, fuerte a debil");
     }
 }
 
 void dibujarPantallaEventos() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("EVENTOS");
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     int total = 0;
     EventoLog* lista = eventos.getEventos(total);
 
     if (total == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(10, CONTENT_TOP + 20);
+        tft.setCursor(10, top + 10);
         tft.print("Todavia no paso nada en esta sesion");
+        dibujarPieAyuda("El historial empieza al encender");
         return;
     }
 
     // El mas reciente ya queda primero en el array (ver EventLog::
     // registrar), asi que aca alcanza con recorrerlo en orden.
-    int maxVisibles = alturaListado() / 34;
-    int yOffset = CONTENT_TOP + 6;
+    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / 34;
+    int yOffset = top + 2;
     int mostradas = (total < maxVisibles) ? total : maxVisibles;
 
     for (int i = 0; i < mostradas; i++) {
@@ -368,35 +408,46 @@ void dibujarPantallaEventos() {
 
         yOffset += 34;
     }
+
+    if (total > mostradas) {
+        char masTexto[32];
+        snprintf(masTexto, sizeof(masTexto), "+ %d mas viejos", total - mostradas);
+        dibujarPieAyuda(masTexto);
+    } else {
+        dibujarPieAyuda("El mas reciente arriba de todo");
+    }
 }
 
 void dibujarPantallaMonitor() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("MONITOR");
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     unsigned long totalDeauth = 0, totalDisassoc = 0;
     scanner.getAnomaliasStats(totalDeauth, totalDisassoc);
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-    tft.setCursor(5, CONTENT_TOP + 4);
+    tft.setCursor(5, top);
     tft.print("Deauth: ");
     tft.setTextColor(totalDeauth > 0 ? COLOR_DANGER : COLOR_TEXT, COLOR_BG);
     tft.print(totalDeauth);
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-    tft.setCursor(TFT_PANEL_WIDTH / 2 + 5, CONTENT_TOP + 4);
+    tft.setCursor(TFT_PANEL_WIDTH / 2 + 5, top);
     tft.print("Disassoc: ");
     tft.setTextColor(totalDisassoc > 0 ? COLOR_WARN : COLOR_TEXT, COLOR_BG);
     tft.print(totalDisassoc);
 
-    tft.drawFastHLine(5, CONTENT_TOP + 22, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
+    tft.drawFastHLine(5, top + 18, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
 
     int total = 0;
     AnomaliaWiFi* lista = scanner.getAnomalias(total);
 
     if (total == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(10, CONTENT_TOP + 40);
+        tft.setCursor(10, top + 36);
         tft.print("Nada detectado por ahora");
+        dibujarPieAyuda("Pasivo: solo mira, no transmite nada");
         return;
     }
 
@@ -405,8 +456,8 @@ void dibujarPantallaMonitor() {
     // asi que esta lista solo ve lo que pasa en ESE canal - no es un
     // monitor de toda la banda 2.4GHz a la vez. Igual sirve para
     // notar una rafaga de deauth mientras mirás esa red puntual.
-    int maxVisibles = (alturaListado() - 30) / 34;
-    int yOffset = CONTENT_TOP + 32;
+    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - 30 - ALTO_PIE_AYUDA) / 34;
+    int yOffset = top + 28;
     int mostradas = (total < maxVisibles) ? total : maxVisibles;
 
     for (int i = 0; i < mostradas; i++) {
@@ -434,16 +485,22 @@ void dibujarPantallaMonitor() {
     }
 
     if (total > mostradas) {
-        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(5, yOffset + 2);
-        tft.print("+ ");
-        tft.print(total - mostradas);
-        tft.print(" mas");
+        char masTexto[32];
+        snprintf(masTexto, sizeof(masTexto), "+ %d mas", total - mostradas);
+        dibujarPieAyuda(masTexto);
+    } else {
+        dibujarPieAyuda("Pasivo: solo mira, no transmite nada");
     }
 }
 
 void dibujarListaRedes() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("ESCANEAR");
+
+    // Todo el contenido de esta pantalla arranca despues del titulo de
+    // arriba (antes arrancaba pegado a CONTENT_TOP) - de ahi el "top"
+    // en vez de CONTENT_TOP suelto en cada cursor de aca para abajo.
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     // Mientras hay un escaneo en curso no tiene sentido mostrar la
     // lista vieja por debajo del cartel de "Escaneando...": antes se
@@ -451,8 +508,9 @@ void dibujarListaRedes() {
     // le caia encima a mitad de camino). Se ve una cosa o la otra.
     if (escaneando) {
         tft.setTextColor(COLOR_WARN, COLOR_BG);
-        tft.setCursor(10, CONTENT_TOP + 20);
+        tft.setCursor(10, top + 10);
         tft.print("Escaneando...");
+        dibujarPieAyuda("Esperando resultados...");
         return;
     }
 
@@ -463,17 +521,18 @@ void dibujarListaRedes() {
     // vez de la lista, con la cuenta regresiva real.
     if (scanner.conteoEnProgreso()) {
         tft.setTextColor(COLOR_WARN, COLOR_BG);
-        tft.setCursor(10, CONTENT_TOP + 20);
+        tft.setCursor(10, top + 10);
         tft.print("Escuchando clientes de");
         tft.setTextColor(COLOR_TEXT, COLOR_BG);
-        tft.setCursor(10, CONTENT_TOP + 40);
+        tft.setCursor(10, top + 30);
         if (redIndiceConteo >= 0 && redIndiceConteo < numRedes) {
             tft.print(redes[redIndiceConteo].ssid);
         }
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(10, CONTENT_TOP + 60);
+        tft.setCursor(10, top + 50);
         tft.print((scanner.tiempoRestanteConteo() / 1000) + 1);
         tft.print("s restantes");
+        dibujarPieAyuda("Pasivo: solo escucha, no se conecta");
         return;
     }
 
@@ -482,7 +541,7 @@ void dibujarListaRedes() {
     // escaneo nuevo.
     if (redIndiceConteo >= 0 && redIndiceConteo < numRedes) {
         tft.setTextColor(COLOR_ACCENT, COLOR_BG);
-        tft.setCursor(5, CONTENT_TOP + 4);
+        tft.setCursor(5, top - 6);
         tft.print("Clientes de ");
         tft.print(redes[redIndiceConteo].ssid);
 
@@ -491,11 +550,11 @@ void dibujarListaRedes() {
 
         if (total == 0) {
             tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-            tft.setCursor(10, CONTENT_TOP + 26);
+            tft.setCursor(10, top + 16);
             tft.print("Nadie hablando con esta red ahora");
         } else {
-            int maxVisibles = (alturaListado() - 36) / 18;
-            int yOffset = CONTENT_TOP + 24;
+            int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - 36 - ALTO_PIE_AYUDA) / 18;
+            int yOffset = top + 14;
             int mostradas = (total < maxVisibles) ? total : maxVisibles;
             for (int i = 0; i < mostradas; i++) {
                 ClienteInfo& c = lista[i];
@@ -518,14 +577,12 @@ void dibujarListaRedes() {
             }
         }
 
-        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(5, CONTENT_TOP + alturaListado() - 14);
-        tft.print("Toca para volver a la lista");
+        dibujarPieAyuda("Toca para volver a la lista");
         return;
     }
 
-    int yOffset = CONTENT_TOP + 10;
-    int maxVisibles = alturaListado() / 20;
+    int yOffset = top + 6;
+    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / 20;
 
     for (int i = 0; i < numRedes && i < maxVisibles; i++) {
         char buf[40];
@@ -547,23 +604,17 @@ void dibujarListaRedes() {
 
     if (numRedes == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(10, CONTENT_TOP + 20);
+        tft.setCursor(10, top + 10);
         tft.print("Toca aca para escanear");
+        dibujarPieAyuda("Pasivo: no se conecta a ninguna red");
     } else {
-        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(5, CONTENT_TOP + alturaListado() - 14);
-        tft.print("Toca una red para ver sus clientes");
+        dibujarPieAyuda("Toca una red para ver sus clientes");
     }
 }
 
 void dibujarPantallaStats() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
-    tft.setTextFont(2);
-    tft.setCursor(10, CONTENT_TOP + 6);
-    tft.print("Memoria de redes");
-    tft.setTextFont(1);
-    tft.drawFastHLine(10, CONTENT_TOP + 24, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
+    dibujarTituloSeccion("STATS");
 
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 35);
@@ -592,16 +643,13 @@ void dibujarPantallaStats() {
             tft.print(" veces");
         }
     }
+
+    dibujarPieAyuda("Se actualiza con cada escaneo");
 }
 
 void dibujarPantallaWardrive() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
-    tft.setTextFont(2);
-    tft.setCursor(10, CONTENT_TOP + 6);
-    tft.print("Wardriving");
-    tft.setTextFont(1);
-    tft.drawFastHLine(10, CONTENT_TOP + 24, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
+    dibujarTituloSeccion("WARDRIVE");
 
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 35);
@@ -662,6 +710,8 @@ void dibujarPantallaWardrive() {
         tft.print(" puntos");
     }
 
+    dibujarPieAyuda("Guarda cada red vista, con GPS si hay fix");
+
     #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
         touchDriver.reclaimBus();
     #endif
@@ -717,12 +767,7 @@ void actualizarDiagnosticoHardware() {
 
 void dibujarPantallaConfig() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
-    tft.setTextFont(2);
-    tft.setCursor(10, CONTENT_TOP + 6);
-    tft.print("Config");
-    tft.setTextFont(1);
-    tft.drawFastHLine(10, CONTENT_TOP + 24, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
+    dibujarTituloSeccion("CONFIG");
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 35);
@@ -772,6 +817,11 @@ void dibujarPantallaConfig() {
     // el resto de esta pantalla (lo de arriba) se queda quieto.
     tft.drawFastHLine(10, CONTENT_TOP + 132, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
     actualizarDiagnosticoHardware();
+
+    // Esto se dibuja una sola vez, al entrar a la pantalla - no hace
+    // falta repetirlo en actualizarDiagnosticoHardware() (que se llama
+    // aparte cada 1s) porque el texto no cambia nunca.
+    dibujarPieAyuda("Info de la placa y el estado de la SD");
 
     #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
         touchDriver.reclaimBus();
@@ -825,11 +875,16 @@ void manejarToque(int x, int y) {
                 break;
             }
 
-            int primeraFilaY = CONTENT_TOP + 10;
+            // Mismos numeros que usa dibujarListaRedes() para pintar la
+            // lista (top + 6, filas de 20px) - si alguno de los dos
+            // cambia sin el otro, el toque deja de coincidir con lo que
+            // se ve en pantalla.
+            int primeraFilaY = CONTENT_TOP + ALTO_TITULO_SECCION + 6;
             int filaAlto = 20;
             int indiceFila = (y - primeraFilaY) / filaAlto;
             bool filaValida = (y >= primeraFilaY) && indiceFila >= 0 &&
-                indiceFila < numRedes && indiceFila < (alturaListado() / filaAlto);
+                indiceFila < numRedes &&
+                indiceFila < ((alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / filaAlto);
 
             if (filaValida) {
                 // Toco una red puntual: arranca el conteo pasivo de

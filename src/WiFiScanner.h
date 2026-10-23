@@ -95,6 +95,22 @@ private:
     unsigned long contadorDeauth = 0;
     unsigned long contadorDisassoc = 0;
 
+    // Copias "congeladas" que devuelven getAnomalias()/getClientes(),
+    // tomadas bajo lock - ver el comentario largo en el .cpp (encima
+    // de "mux") de por que hace falta esto y no alcanza con devolver
+    // un puntero a clientes[]/anomalias[] directamente.
+    AnomaliaWiFi anomaliasSnapshot[MAX_ANOMALIAS_RAM];
+    int numAnomaliasSnapshot = 0;
+    ClienteInfo clientesSnapshot[MAX_CLIENTES];
+    int numClientesSnapshot = 0;
+
+    // Protege todo lo de arriba (clientes/numClientes/anomalias/
+    // contadores/escuchandoClientes): promiscuousCallback() corre en
+    // la tarea interna del driver WiFi, en paralelo con loop() - sin
+    // esto, una pantalla podria leer un MAC o un contador a medio
+    // escribir justo cuando llega un paquete.
+    portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
     static WiFiScanner* instance;
 };
 

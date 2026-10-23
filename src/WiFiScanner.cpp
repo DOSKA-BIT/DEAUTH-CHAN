@@ -45,11 +45,13 @@ void WiFiScanner::getScanResults(RedInfo* resultados, int maxRedes, int& encontr
 }
 
 void WiFiScanner::iniciarConteoClientes(const uint8_t* bssid, int canal) {
+    portENTER_CRITICAL(&mux);
     memcpy(bssidObjetivo, bssid, 6);
     canalObjetivo = canal;
     numClientes = 0;
     conteoInicio = millis();
     escuchandoClientes = true;
+    portEXIT_CRITICAL(&mux);
 
     esp_wifi_set_channel(canal, WIFI_SECOND_CHAN_NONE);
     Serial.printf("Escuchando trafico en canal %d\n", canal);
@@ -76,6 +78,7 @@ unsigned long WiFiScanner::tiempoRestanteConteo() {
 }
 
 void WiFiScanner::finalizarConteoClientes() {
+    portENTER_CRITICAL(&mux);
     unsigned long ahora = millis();
     for (int i = 0; i < numClientes; i++) {
         if (ahora - clientes[i].ultimaVez > CLIENTE_TIMEOUT) {
@@ -86,14 +89,30 @@ void WiFiScanner::finalizarConteoClientes() {
             i--;
         }
     }
-
     escuchandoClientes = false;
-    Serial.printf("Dispositivos distintos escuchados: %d\n", numClientes);
+    int numClientesFinal = numClientes;
+    portEXIT_CRITICAL(&mux);
+
+    Serial.printf("Dispositivos distintos escuchados: %d\n", numClientesFinal);
 }
 
 ClienteInfo* WiFiScanner::getClientes(int& count) {
-    count = numClientes;
-    return clientes;
+    // Antes esto devolvia un puntero directo a clientes[], el mismo
+    // array que promiscuousCallback() puede estar modificando EN ESE
+    // MISMO INSTANTE desde la tarea del driver WiFi (en paralelo con
+    // loop()). dibujarListaRedes() podia terminar imprimiendo un MAC o
+    // un RSSI a medio escribir, o leer mas alla de "count" si el
+    // callback agregaba un cliente nuevo mientras se estaba
+    // dibujando. Ahora se copia todo de una vez bajo lock a un
+    // "snapshot" propio, y se devuelve ESE - lo que lee la pantalla
+    // nunca cambia por debajo mientras lo esta leyendo.
+    portENTER_CRITICAL(&mux);
+    numClientesSnapshot = numClientes;
+    memcpy(clientesSnapshot, clientes, sizeof(ClienteInfo) * numClientesSnapshot);
+    portEXIT_CRITICAL(&mux);
+
+    count = numClientesSnapshot;
+    return clientesSnapshot;
 }
 
 void WiFiScanner::setLED(bool state) {
@@ -101,6 +120,7 @@ void WiFiScanner::setLED(bool state) {
 }
 
 void WiFiScanner::registrarAnomalia(bool esDisassoc, uint8_t* origen, uint8_t* destino, int canal, int rssi) {
+    portENTER_CRITICAL(&mux);
     if (esDisassoc) {
         contadorDisassoc++;
     } else {
@@ -120,16 +140,32 @@ void WiFiScanner::registrarAnomalia(bool esDisassoc, uint8_t* origen, uint8_t* d
     anomalias[0].esDisassoc = esDisassoc;
 
     if (numAnomalias < MAX_ANOMALIAS_RAM) numAnomalias++;
+    portEXIT_CRITICAL(&mux);
 }
 
 void WiFiScanner::getAnomaliasStats(unsigned long& deauth, unsigned long& disassoc) {
+    // Dos "unsigned long" sueltos no se leen atomicamente solos en
+    // ningun micro de 8/16/32 bits en general (y en el ESP32 ya hay
+    // dos nucleos de por medio), asi que el lock sigue haciendo falta
+    // aca aunque parezca una lectura trivial.
+    portENTER_CRITICAL(&mux);
     deauth = contadorDeauth;
     disassoc = contadorDisassoc;
+    portEXIT_CRITICAL(&mux);
 }
 
 AnomaliaWiFi* WiFiScanner::getAnomalias(int& count) {
-    count = numAnomalias;
-    return anomalias;
+    // Mismo motivo que getClientes() de arriba: se copia a un
+    // snapshot propio bajo lock en vez de devolver un puntero al
+    // array que registrarAnomalia() puede estar modificando desde la
+    // tarea del driver WiFi en paralelo.
+    portENTER_CRITICAL(&mux);
+    numAnomaliasSnapshot = numAnomalias;
+    memcpy(anomaliasSnapshot, anomalias, sizeof(AnomaliaWiFi) * numAnomaliasSnapshot);
+    portEXIT_CRITICAL(&mux);
+
+    count = numAnomaliasSnapshot;
+    return anomaliasSnapshot;
 }
 
 void WiFiScanner::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type) {
@@ -188,15 +224,23 @@ void WiFiScanner::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t typ
 void WiFiScanner::actualizarCliente(uint8_t* mac, int rssi, uint8_t* bssid, int canal) {
     unsigned long ahora = millis();
 
+    // Corre dentro de promiscuousCallback() (tarea del driver WiFi),
+    // al mismo tiempo que loop() puede estar en getClientes() o en
+    // finalizarConteoClientes() tocando este mismo array - de ahi el
+    // lock. buscarOUI() es solo lectura de una tabla fija (OUI_DB.h),
+    // no hace falta meterla adentro de la seccion critica.
+    portENTER_CRITICAL(&mux);
+    bool encontrado = false;
     for (int i = 0; i < numClientes; i++) {
         if (memcmp(clientes[i].mac, mac, 6) == 0) {
             clientes[i].rssi = rssi;
             clientes[i].ultimaVez = ahora;
-            return;
+            encontrado = true;
+            break;
         }
     }
 
-    if (numClientes < MAX_CLIENTES) {
+    if (!encontrado && numClientes < MAX_CLIENTES) {
         memcpy(clientes[numClientes].mac, mac, 6);
         clientes[numClientes].rssi = rssi;
         clientes[numClientes].canal = canal;
@@ -207,4 +251,5 @@ void WiFiScanner::actualizarCliente(uint8_t* mac, int rssi, uint8_t* bssid, int 
         clientes[numClientes].fabricante[15] = '\0';
         numClientes++;
     }
+    portEXIT_CRITICAL(&mux);
 }
