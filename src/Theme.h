@@ -10,24 +10,42 @@
 // partir de un rgb(r,g,b) normal de 0 a 255 - si queres probar otro
 // color, buscate una calculadora de RGB565 en internet y pegalo aca.
 
-// Paleta monocromatica (estilo terminal retro / Pwnagotchi-Flipper):
-// negro puro de fondo y un solo tono celeste para todo lo demas, en
-// distintas intensidades. No hay un color separado para avisos o
-// errores a proposito - en monocromo esas diferencias se marcan con
-// texto invertido (fondo celeste, letra negra) en vez de otro matiz,
-// que es como lo resuelven las pantallas monocromaticas de verdad. Los
-// nombres de abajo se mantienen igual que antes (COLOR_WARN,
-// COLOR_DANGER, etc) para no tener que tocar cada archivo que ya los
-// usa - achicamos la paleta aca nomas.
-#define COLOR_BG            0x0000   // fondo: negro puro
-#define COLOR_PANEL         0x0842   // paneles/barras: casi negro, solo para separar del fondo
-#define COLOR_ACCENT        0x9F5F   // celeste brillante: el unico color "vivo" del firmware
-#define COLOR_ACCENT_DIM    0x3AED   // mismo celeste, apagado (lo inactivo, lo secundario)
-#define COLOR_WARN          COLOR_ACCENT      // sin matiz propio: un aviso se marca invirtiendo texto/fondo, no con otro color
-#define COLOR_DANGER        COLOR_ACCENT      // idem para errores (SD no detectada, etc)
-#define COLOR_TEXT          0xC7BF   // texto principal: blanco con tinte celeste
-#define COLOR_TEXT_DIM      0x4B2D   // texto secundario / placeholders
-#define COLOR_SLEEP         0x1167   // fondo de la cara cuando esta durmiendo
+// Rediseno "herramienta de ciberseguridad retro" (fase 1: paleta),
+// calcado de la referencia que mando el usuario: fondo azul marino
+// casi negro, encabezado azul intenso, y colores de categoria
+// (cian/violeta/rojo/amarillo) para distinguir de un vistazo que tipo
+// de herramienta es cada cosa - a diferencia de la paleta monocroma
+// anterior, aca el color SI es informacion (rojo = alerta, amarillo =
+// stats/destacado, etc), no solo decoracion.
+#define COLOR_BG            0x0843   // fondo: azul marino casi negro
+#define COLOR_HEADER        0x1193   // encabezado superior: azul intenso bien visible
+#define COLOR_PANEL         0x0886   // paneles/bordes: un paso mas claro que el fondo
+#define COLOR_TEXT          0xEF3B   // texto principal: blanco calido
+#define COLOR_TEXT_DIM      0x7C35   // texto secundario / placeholders: gris azulado
+
+// Acento general (seleccion, lineas separadoras, lo que antes usaba
+// el unico celeste de la paleta monocroma). Coincide a proposito con
+// COLOR_CAT_CYAN de aca abajo: las herramientas de red SON el acento
+// "por defecto" del firmware.
+#define COLOR_ACCENT        0x3F1D   // cian brillante
+#define COLOR_ACCENT_DIM     0x2AD0   // mismo cian, apagado
+
+// Colores de categoria: cada herramienta se dibuja con el color de su
+// categoria (icono + texto), asi se distingue el tipo de funcion de
+// un vistazo sin tener que leer el nombre completo. Ver la asignacion
+// herramienta-por-herramienta en main.cpp (categoriaHerramienta()).
+#define COLOR_CAT_CYAN      0x3F1D   // redes / escaneo / descubrimiento
+#define COLOR_CAT_VIOLET    0x92FD   // analisis / wardriving / datos de ubicacion
+#define COLOR_CAT_RED       0xE9E9   // alertas / monitor de deauth-disassoc
+#define COLOR_CAT_YELLOW    0xEE27   // estadisticas / acciones destacadas
+
+// Avisos y errores: mantienen su propio matiz (ya no comparten color
+// con el acento general como en la paleta monocroma), para que un
+// error realmente se note distinto de una fila normal.
+#define COLOR_WARN          COLOR_CAT_YELLOW
+#define COLOR_DANGER         COLOR_CAT_RED
+
+#define COLOR_SLEEP         0x0864   // fondo de la cara cuando esta durmiendo
 #define COLOR_SLEEP_BORDE   COLOR_ACCENT_DIM
 
 #endif
