@@ -33,19 +33,19 @@
 // Colores de categoria: cada herramienta se dibuja con el color de su
 // categoria (icono + texto), asi se distingue el tipo de funcion de
 // un vistazo sin tener que leer el nombre completo. Ver la asignacion
-// herramienta-por-herramienta en main.cpp (categoriaHerramienta()).
+// herramienta-por-herramienta en main.cpp (el array herramientas[],
+// campo "color" de cada una).
 #define COLOR_CAT_CYAN      0x3F1D   // redes / escaneo / descubrimiento
 #define COLOR_CAT_VIOLET    0x92FD   // analisis / wardriving / datos de ubicacion
 #define COLOR_CAT_RED       0xE9E9   // alertas / monitor de deauth-disassoc
 #define COLOR_CAT_YELLOW    0xEE27   // estadisticas / acciones destacadas
+#define COLOR_CAT_BLUE      0x547F   // configuracion / ajustes, categoria neutra
+#define COLOR_CAT_WHITE     COLOR_TEXT // listas simples / informativas (conocidas, eventos)
 
 // Avisos y errores: mantienen su propio matiz (ya no comparten color
 // con el acento general como en la paleta monocroma), para que un
 // error realmente se note distinto de una fila normal.
 #define COLOR_WARN          COLOR_CAT_YELLOW
 #define COLOR_DANGER         COLOR_CAT_RED
-
-#define COLOR_SLEEP         0x0864   // fondo de la cara cuando esta durmiendo
-#define COLOR_SLEEP_BORDE   COLOR_ACCENT_DIM
 
 #endif

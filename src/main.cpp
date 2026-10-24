@@ -19,6 +19,7 @@
 #include "Learning.h"
 #include "EventLog.h"
 #include "Theme.h"
+#include "Iconos.h"
 
 TFT_eSPI tft = TFT_eSPI();
 
@@ -77,7 +78,8 @@ bool contenidoSucio = true;
 
 enum MenuScreen {
     SCREEN_MAIN,
-    SCREEN_TOOLS,
+    SCREEN_TOOLS,     // menu de categorias (WIFI / WARDRIVING / AJUSTES)
+    SCREEN_TOOLS_SUB, // lista de herramientas DENTRO de la categoria elegida
     SCREEN_SCAN,
     SCREEN_STATS,
     SCREEN_WARDRIVE,
@@ -98,6 +100,12 @@ int filaDestellada = -1;
 unsigned long momentoDestello = 0;
 const unsigned long DESTELLO_MS = 120; // bien cortito, solo para que se note el toque
 MenuScreen destinoPendiente = SCREEN_MAIN;
+
+// Que categoria se esta mostrando en SCREEN_TOOLS_SUB (indice dentro
+// de categorias[], ver mas abajo). Se fija apenas se toca una fila en
+// SCREEN_TOOLS, antes de que termine el destello - asi la pantalla ya
+// sabe que lista filtrada dibujar en cuanto arranca la navegacion.
+int categoriaSeleccionada = 0;
 
 struct Boton {
     int x, y, w, h;
@@ -122,28 +130,62 @@ void calcularLayoutMenu() {
     menuBotones[1] = {anchoBoton, y, anchoBoton - 2, 34, "Herramientas"};
 }
 
+// Las 3 categorias del submenu de Herramientas (pedido del usuario:
+// agrupar por tipo en vez de una lista plana de 7 items). Son pocas y
+// fijas, asi que van en su propio array chico en vez de inventarse
+// aparte de herramientas[] - cada Herramienta de mas abajo apunta a
+// una de estas por indice (campo "categoria").
+enum { CAT_WIFI, CAT_WARDRIVING, CAT_AJUSTES, CANTIDAD_CATEGORIAS };
+
+struct Categoria {
+    const char* nombre;
+    const char* descripcion;
+    uint16_t color;
+    const uint8_t* icono;
+    int y, h; // se calculan en calcularLayoutCategorias()
+};
+
+// El icono de cada categoria es el de su primera herramienta (no hay
+// un set de iconos "de categoria" aparte - no hacia falta duplicar
+// arte para esto).
+Categoria categorias[CANTIDAD_CATEGORIAS] = {
+    {"WIFI",       "Escaneo, stats, conocidas, monitor y eventos", COLOR_CAT_CYAN,   ICONO_ESCANEAR, 0, 0},
+    {"WARDRIVING", "Guardado de ubicacion + redes en la SD",       COLOR_CAT_VIOLET, ICONO_WARDRIVE, 0, 0},
+    {"AJUSTES",    "Datos de la placa y el estado de la SD",       COLOR_CAT_BLUE,   ICONO_CONFIG,   0, 0},
+};
+
 // Una fila por herramienta en la pantalla de Herramientas: nombre,
-// descripcion corta y a que pantalla lleva al tocarla. Agregar una
-// herramienta nueva es agregar una linea aca (y su pantalla propia),
-// nada mas - no hay que tocar la barra de botones para nada.
+// descripcion corta, a que categoria pertenece (para el submenu de
+// arriba), a que pantalla lleva al tocarla, y su color + icono de
+// categoria (rediseno "WiFi Sniffers" - cada tipo de funcion se
+// distingue de un vistazo por su color e icono, no solo por el
+// nombre). Agregar una herramienta nueva es agregar una linea aca (y
+// su pantalla propia, y su icono en Iconos.h) - no hay que tocar la
+// barra de botones para nada.
 struct Herramienta {
     const char* nombre;
     const char* descripcion;
+    int categoria;         // indice en categorias[] (CAT_WIFI, etc)
     MenuScreen destino;
-    int y, h; // se calculan en calcularLayoutHerramientas()
+    uint16_t color;        // color de categoria (icono + texto)
+    const uint8_t* icono;  // bitmap 16x16 de Iconos.h
+    int y, h; // se calculan en layoutHerramientasDeCategoria()
 };
 
 // Nombres en mayuscula a proposito: es parte de la estetica de lista
-// de terminal (numerada, monocromatica) que reemplaza a las tarjetas
-// redondeadas de antes - ver dibujarPantallaHerramientas().
+// de terminal que reemplaza a las tarjetas redondeadas de antes - ver
+// dibujarPantallaHerramientasSub(). El color de cada una es su
+// categoria: cian = redes/descubrimiento, amarillo = stats/destacado,
+// violeta = analisis/ubicacion, azul = configuracion (neutro), blanco
+// = listas simples/informativas, rojo = alertas.
 Herramienta herramientas[] = {
-    {"ESCANEAR", "Buscar redes WiFi cerca",         SCREEN_SCAN,     0, 0},
-    {"STATS",    "Memoria de redes ya vistas",       SCREEN_STATS,    0, 0},
-    {"WARDRIVE", "Guardar ubicacion + redes en SD",  SCREEN_WARDRIVE, 0, 0},
-    {"CONFIG",   "Datos de la placa y la SD",        SCREEN_CONFIG,   0, 0},
-    {"CONOCIDAS", "Redes guardadas, por senial",     SCREEN_CONOCIDAS, 0, 0},
-    {"EVENTOS",   "Historial de esta sesion",        SCREEN_EVENTOS,   0, 0},
-    {"MONITOR",   "Deauth/disassoc detectados",       SCREEN_MONITOR,   0, 0},
+    {"ESCANEAR",  "Buscar redes WiFi cerca",         CAT_WIFI,       SCREEN_SCAN,      COLOR_CAT_CYAN,   ICONO_ESCANEAR,  0, 0},
+    {"STATS",     "Memoria de redes ya vistas",       CAT_WIFI,       SCREEN_STATS,     COLOR_CAT_YELLOW, ICONO_STATS,     0, 0},
+    {"CONOCIDAS", "Redes guardadas, por senial",      CAT_WIFI,       SCREEN_CONOCIDAS, COLOR_CAT_WHITE,  ICONO_CONOCIDAS, 0, 0},
+    {"MONITOR",   "Deauth/disassoc detectados",       CAT_WIFI,       SCREEN_MONITOR,   COLOR_CAT_RED,    ICONO_MONITOR,   0, 0},
+    {"EVENTOS",   "Historial de esta sesion",         CAT_WIFI,       SCREEN_EVENTOS,   COLOR_CAT_BLUE,   ICONO_EVENTOS,   0, 0},
+    {"WARDRIVE",  "Guardar ubicacion + redes en SD",  CAT_WARDRIVING, SCREEN_WARDRIVE,  COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0},
+    {"CONFIG",    "Datos de la placa y la SD",        CAT_AJUSTES,    SCREEN_CONFIG,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
 };
 const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0]);
 
@@ -152,7 +194,7 @@ int alturaListado(); // definida mas abajo, hace falta antes aca
 // Alto que ocupa el titulo de seccion (dibujarTituloSeccion, definida
 // mas abajo junto con alturaListado) incluyendo su linea separadora -
 // las pantallas que lo usan arrancan su propio contenido despues de
-// este offset. Declarado aca arriba porque calcularLayoutHerramientas
+// este offset. Declarado aca arriba porque calcularLayoutCategorias
 // lo necesita antes de donde vive la funcion que lo dibuja.
 const int ALTO_TITULO_SECCION = 30;
 
@@ -165,28 +207,58 @@ const int ALTO_TITULO_SECCION = 30;
 // todas parejas.
 const int ALTO_PIE_AYUDA = 34;
 
-void calcularLayoutHerramientas() {
-    // El alto de cada fila se calcula segun cuantas herramientas haya
-    // para que entren todas sin superponerse, en vez de tener un
-    // numero fijo que se rompe el dia que se agrega una quinta o
-    // sexta herramienta (como paso al sumar "Conocidas"). Filas de una
-    // sola linea (antes tenian nombre + descripcion + separador, ahora
-    // la descripcion se muestra aparte, en el renglon de ayuda de
-    // abajo) asi que son mas bajas y entran mas sin apretarse. Arrancan
-    // despues de ALTO_TITULO_SECCION porque ahora esta pantalla tiene
-    // su propio titulo "HERRAMIENTAS" arriba de la lista.
+// Layout del menu de categorias (SCREEN_TOOLS) - son siempre 3, fijas,
+// asi que esto se calcula una sola vez en setup() como antes se hacia
+// con las 7 herramientas en un solo nivel.
+void calcularLayoutCategorias() {
     int espacioDisponible = alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA;
-    int gap = 2;
-    int alto = (espacioDisponible - gap * (CANTIDAD_HERRAMIENTAS - 1)) / CANTIDAD_HERRAMIENTAS;
-    if (alto > 28) alto = 28; // no hace falta que crezcan de mas si hay pocas
-    if (alto < 18) alto = 18; // tampoco que se aplasten si hay muchas
+    int gap = 6;
+    int alto = (espacioDisponible - gap * (CANTIDAD_CATEGORIAS - 1)) / CANTIDAD_CATEGORIAS;
+    if (alto > 48) alto = 48; // son pocas categorias, que se vean bien grandes
+    if (alto < 24) alto = 24;
 
     int y = CONTENT_TOP + ALTO_TITULO_SECCION;
-    for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
-        herramientas[i].y = y;
-        herramientas[i].h = alto;
+    for (int i = 0; i < CANTIDAD_CATEGORIAS; i++) {
+        categorias[i].y = y;
+        categorias[i].h = alto;
         y += alto + gap;
     }
+}
+
+// Arma, para SCREEN_TOOLS_SUB, la lista de herramientas que
+// pertenecen a "categoria" (sus indices dentro de herramientas[], en
+// "indicesOut") y calcula la posicion de cada una - mismo criterio que
+// antes usaba un calcularLayoutHerramientas() fijo para las 7 juntas, pero
+// ahora filtrado y recalculado en el momento en vez de una sola vez en
+// setup(), porque la cantidad cambia segun que categoria se eligio (5
+// en WIFI, 1 en WARDRIVING, 1 en AJUSTES). Son pocos items como para
+// que valga la pena cachear esto aparte; se llama tanto desde el
+// dibujado como desde el toque, siempre con los mismos dos pasos, para
+// que nunca queden desincronizados entre si (mismo motivo que el
+// comentario de SCREEN_SCAN en manejarToque()).
+int layoutHerramientasDeCategoria(int categoria, int* indicesOut) {
+    int cantidad = 0;
+    for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
+        if (herramientas[i].categoria == categoria) {
+            indicesOut[cantidad++] = i;
+        }
+    }
+    if (cantidad == 0) return 0; // no deberia pasar nunca, pero evita una division por 0
+
+    int espacioDisponible = alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA;
+    int gap = 2;
+    int alto = (espacioDisponible - gap * (cantidad - 1)) / cantidad;
+    if (alto > 28) alto = 28;
+    if (alto < 18) alto = 18;
+
+    int y = CONTENT_TOP + ALTO_TITULO_SECCION;
+    for (int k = 0; k < cantidad; k++) {
+        int idx = indicesOut[k];
+        herramientas[idx].y = y;
+        herramientas[idx].h = alto;
+        y += alto + gap;
+    }
+    return cantidad;
 }
 
 void dibujarMenuBotones() {
@@ -236,12 +308,29 @@ int alturaListado() {
 // (REDES/NUEVAS/estado, en Mascota::dibujarEncabezado) - ese es
 // compartido entre todas las pantallas y muestra el estado del
 // dispositivo; este es el titulo de CADA pantalla en particular.
-void dibujarTituloSeccion(const char* titulo) {
-    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
+// "color" es el color de categoria de la herramienta (el mismo que
+// usa su fila en dibujarPantallaHerramientasSub() - cian, violeta, rojo,
+// amarillo, azul o blanco) para que al tocar una fila y entrar a su
+// pantalla el titulo de arriba siga mostrando esa misma identidad de
+// color, en vez de que todas las pantallas se vean con el mismo
+// celeste generico. "icono" es opcional (la propia lista de
+// Herramientas no necesita uno junto a su titulo) - si se pasa, se
+// dibuja a la izquierda del texto con el mismo bitmap que ya usa esa
+// herramienta en la lista.
+void dibujarTituloSeccion(const char* titulo, uint16_t color = COLOR_ACCENT, const uint8_t* icono = nullptr) {
+    int x = 10;
+    if (icono) {
+        tft.drawBitmap(x, CONTENT_TOP + 4, icono, ICONO_ANCHO, ICONO_ALTO, color, COLOR_BG);
+        x += ICONO_ANCHO + 6;
+    }
+    tft.setTextColor(color, COLOR_BG);
     tft.setTextFont(2);
-    tft.setCursor(10, CONTENT_TOP + 6);
+    tft.setCursor(x, CONTENT_TOP + 6);
     tft.print(titulo);
     tft.setTextFont(1);
+    // La linea separadora se queda neutra (no de categoria) a
+    // proposito: es chrome compartido de toda pantalla, no parte de
+    // la identidad visual de ESTA herramienta en particular.
     tft.drawFastHLine(10, CONTENT_TOP + 24, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
 }
 
@@ -263,49 +352,89 @@ void dibujarPieAyuda(const char* texto) {
     tft.fillRect(6, yBarra, TFT_PANEL_WIDTH - 12, 5, COLOR_ACCENT);
 }
 
-void dibujarPantallaHerramientas() {
+// Pantalla de arriba de todo del submenu: las 3 categorias (WIFI,
+// WARDRIVING, AJUSTES). Tocar una lleva a dibujarPantallaHerramientasSub()
+// con esa categoria - ver manejarToque(), caso SCREEN_TOOLS.
+void dibujarPantallaCategorias() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
     dibujarTituloSeccion("HERRAMIENTAS");
 
-    // Lista de una sola linea por item (numero + nombre, nada de
-    // descripcion ni separador en cada fila) calcada del menu de
-    // PORKCHOP/Marauder que mando el usuario de referencia. La
-    // descripcion de cada herramienta se muestra aparte, en el
-    // renglon de ayuda de mas abajo, solo mientras esa fila esta
-    // destellando por el toque - asi la lista en si queda tan limpia
-    // como la de la foto.
-    for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
-        Herramienta& h = herramientas[i];
+    // Mismo estilo de fila (icono + nombre en su color, destello al
+    // tocar) que ya se usaba para la lista plana de 7 - ver el
+    // comentario de dibujarPantallaHerramientasSub() aca abajo, que
+    // repite este mismo patron para las herramientas DENTRO de una
+    // categoria.
+    for (int i = 0; i < CANTIDAD_CATEGORIAS; i++) {
+        Categoria& c = categorias[i];
 
-        char numero[4];
-        snprintf(numero, sizeof(numero), "%02d", i + 1);
-
-        // La fila recien tocada se dibuja invertida (fondo celeste,
-        // texto negro) como un destello breve de feedback tactil - ver
-        // el comentario de filaDestellada arriba, junto a su
-        // declaracion. El resto de las filas van con los colores
-        // normales.
         bool destellada = (i == filaDestellada);
-        uint16_t colorFondoFila = destellada ? COLOR_ACCENT : COLOR_BG;
-        uint16_t colorTextoFila = destellada ? COLOR_BG : COLOR_TEXT;
+        uint16_t colorFondoFila = destellada ? c.color : COLOR_BG;
+        uint16_t colorFrenteFila = destellada ? COLOR_BG : c.color;
 
         if (destellada) {
-            tft.fillRect(0, h.y, TFT_PANEL_WIDTH, h.h, COLOR_ACCENT);
+            tft.fillRect(0, c.y, TFT_PANEL_WIDTH, c.h, c.color);
         }
 
-        tft.setTextColor(colorTextoFila, colorFondoFila);
+        int yIcono = c.y + (c.h - ICONO_ALTO) / 2;
+        tft.drawBitmap(10, yIcono, c.icono, ICONO_ANCHO, ICONO_ALTO, colorFrenteFila, colorFondoFila);
+
+        tft.setTextColor(colorFrenteFila, colorFondoFila);
         tft.setTextFont(2);
-        tft.setCursor(10, h.y + (h.h / 2) - 7);
-        tft.print(numero);
-        tft.print(' ');
+        tft.setCursor(10 + ICONO_ANCHO + 8, c.y + (c.h / 2) - 7);
+        tft.print(c.nombre);
+    }
+
+    if (filaDestellada >= 0 && filaDestellada < CANTIDAD_CATEGORIAS) {
+        dibujarPieAyuda(categorias[filaDestellada].descripcion);
+    } else {
+        dibujarPieAyuda("Toca una categoria para ver sus herramientas");
+    }
+}
+
+// Segundo nivel del submenu: las herramientas DENTRO de
+// categoriaSeleccionada (fijada en manejarToque() al tocar una fila
+// de dibujarPantallaCategorias()). Mismo estilo que esa pantalla, solo
+// que filtrado - ver layoutHerramientasDeCategoria() mas arriba para
+// como se arma la lista filtrada y por que se recalcula en el momento
+// en vez de una vez sola en setup().
+void dibujarPantallaHerramientasSub() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    Categoria& cat = categorias[categoriaSeleccionada];
+    dibujarTituloSeccion(cat.nombre, cat.color, cat.icono);
+
+    int indices[CANTIDAD_HERRAMIENTAS];
+    int cantidad = layoutHerramientasDeCategoria(categoriaSeleccionada, indices);
+
+    // Lista de una sola linea por item, icono + nombre, cada uno con
+    // el color de su categoria - calcado del menu de iconos "WiFi
+    // Sniffers" que mando el usuario de referencia. La descripcion de
+    // cada herramienta se muestra aparte, en el renglon de ayuda de
+    // mas abajo, solo mientras esa fila esta destellando por el
+    // toque - asi la lista en si queda limpia. "filaDestellada" aca
+    // es la POSICION dentro de esta lista filtrada (0..cantidad-1),
+    // no el indice global en herramientas[] - ver manejarToque().
+    for (int k = 0; k < cantidad; k++) {
+        Herramienta& h = herramientas[indices[k]];
+
+        bool destellada = (k == filaDestellada);
+        uint16_t colorFondoFila = destellada ? h.color : COLOR_BG;
+        uint16_t colorFrenteFila = destellada ? COLOR_BG : h.color;
+
+        if (destellada) {
+            tft.fillRect(0, h.y, TFT_PANEL_WIDTH, h.h, h.color);
+        }
+
+        int yIcono = h.y + (h.h - ICONO_ALTO) / 2;
+        tft.drawBitmap(10, yIcono, h.icono, ICONO_ANCHO, ICONO_ALTO, colorFrenteFila, colorFondoFila);
+
+        tft.setTextColor(colorFrenteFila, colorFondoFila);
+        tft.setTextFont(2);
+        tft.setCursor(10 + ICONO_ANCHO + 8, h.y + (h.h / 2) - 7);
         tft.print(h.nombre);
     }
 
-    // Pie de ayuda: mientras una fila esta destellando muestra SU
-    // descripcion (asi no hace falta repetirla en cada item, como en
-    // la referencia), y el resto del tiempo un recordatorio generico.
-    if (filaDestellada >= 0 && filaDestellada < CANTIDAD_HERRAMIENTAS) {
-        dibujarPieAyuda(herramientas[filaDestellada].descripcion);
+    if (filaDestellada >= 0 && filaDestellada < cantidad) {
+        dibujarPieAyuda(herramientas[indices[filaDestellada]].descripcion);
     } else {
         dibujarPieAyuda("Toca una herramienta para entrar");
     }
@@ -313,7 +442,7 @@ void dibujarPantallaHerramientas() {
 
 void dibujarPantallaConocidas() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("CONOCIDAS");
+    dibujarTituloSeccion("CONOCIDAS", COLOR_CAT_WHITE, ICONO_CONOCIDAS);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     int total = aprendizaje.getTotalRedesConocidas();
@@ -351,8 +480,12 @@ void dibujarPantallaConocidas() {
     for (int i = 0; i < mostradas; i++) {
         RedStats& r = todas[indices[i]];
 
+        // Icono chico (la misma estrella de la fila "CONOCIDAS" del
+        // menu de Herramientas) a la izquierda de cada red guardada.
+        tft.drawBitmap(5, yOffset - 1, ICONO_CONOCIDAS, ICONO_ANCHO, ICONO_ALTO, COLOR_CAT_WHITE, COLOR_BG);
+
         tft.setTextColor(COLOR_TEXT, COLOR_BG);
-        tft.setCursor(5, yOffset);
+        tft.setCursor(5 + ICONO_ANCHO + 4, yOffset);
         tft.print(strlen(r.ssid) > 0 ? r.ssid : "*OCULTA*");
 
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
@@ -375,7 +508,7 @@ void dibujarPantallaConocidas() {
 
 void dibujarPantallaEventos() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("EVENTOS");
+    dibujarTituloSeccion("EVENTOS", COLOR_CAT_BLUE, ICONO_EVENTOS);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     int total = 0;
@@ -398,12 +531,17 @@ void dibujarPantallaEventos() {
     for (int i = 0; i < mostradas; i++) {
         EventoLog& e = lista[i];
 
+        // Icono chico (el mismo reloj de la fila "EVENTOS" del menu)
+        // a la izquierda de cada entrada del historial.
+        tft.drawBitmap(5, yOffset + 2, ICONO_EVENTOS, ICONO_ANCHO, ICONO_ALTO, COLOR_CAT_BLUE, COLOR_BG);
+        int xTexto = 5 + ICONO_ANCHO + 4;
+
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(5, yOffset);
+        tft.setCursor(xTexto, yOffset);
         tft.print(e.timestamp);
 
         tft.setTextColor(COLOR_TEXT, COLOR_BG);
-        tft.setCursor(5, yOffset + 16);
+        tft.setCursor(xTexto, yOffset + 16);
         tft.print(e.texto);
 
         yOffset += 34;
@@ -420,7 +558,7 @@ void dibujarPantallaEventos() {
 
 void dibujarPantallaMonitor() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("MONITOR");
+    dibujarTituloSeccion("MONITOR", COLOR_CAT_RED, ICONO_MONITOR);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     unsigned long totalDeauth = 0, totalDisassoc = 0;
@@ -466,14 +604,21 @@ void dibujarPantallaMonitor() {
         char horaBuf[16];
         sprintf(horaBuf, "T+%02lu:%02lu:%02lu", segundos / 3600, (segundos % 3600) / 60, segundos % 60);
 
+        // Icono de alerta (el mismo triangulo de la fila "MONITOR" del
+        // menu) a la izquierda de cada anomalia - en amarillo para
+        // disassoc, en rojo para deauth, igual que el texto de abajo.
+        uint16_t colorFila = a.esDisassoc ? COLOR_WARN : COLOR_DANGER;
+        tft.drawBitmap(5, yOffset + 2, ICONO_MONITOR, ICONO_ANCHO, ICONO_ALTO, colorFila, COLOR_BG);
+        int xTexto = 5 + ICONO_ANCHO + 4;
+
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(5, yOffset);
+        tft.setCursor(xTexto, yOffset);
         tft.print(horaBuf);
         tft.print("  ch");
         tft.print(a.canal);
 
-        tft.setTextColor(a.esDisassoc ? COLOR_WARN : COLOR_DANGER, COLOR_BG);
-        tft.setCursor(5, yOffset + 16);
+        tft.setTextColor(colorFila, COLOR_BG);
+        tft.setCursor(xTexto, yOffset + 16);
         tft.print(a.esDisassoc ? "DISASSOC" : "DEAUTH");
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.print("  de ..");
@@ -495,7 +640,7 @@ void dibujarPantallaMonitor() {
 
 void dibujarListaRedes() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("ESCANEAR");
+    dibujarTituloSeccion("ESCANEAR", COLOR_CAT_CYAN, ICONO_ESCANEAR);
 
     // Todo el contenido de esta pantalla arranca despues del titulo de
     // arriba (antes arrancaba pegado a CONTENT_TOP) - de ahi el "top"
@@ -540,7 +685,7 @@ void dibujarListaRedes() {
     // hasta que se toque de nuevo (vuelve a la lista) o se pida un
     // escaneo nuevo.
     if (redIndiceConteo >= 0 && redIndiceConteo < numRedes) {
-        tft.setTextColor(COLOR_ACCENT, COLOR_BG);
+        tft.setTextColor(COLOR_CAT_CYAN, COLOR_BG);
         tft.setCursor(5, top - 6);
         tft.print("Clientes de ");
         tft.print(redes[redIndiceConteo].ssid);
@@ -585,15 +730,18 @@ void dibujarListaRedes() {
     int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / 20;
 
     for (int i = 0; i < numRedes && i < maxVisibles; i++) {
-        char buf[40];
-        if (strlen(redes[i].ssid) == 0) {
-            sprintf(buf, "%d.*OCULTA*", i + 1);
-        } else {
-            sprintf(buf, "%d.%s", i + 1, redes[i].ssid);
-        }
-        tft.setTextColor(redes[i].tieneClave ? COLOR_TEXT : COLOR_WARN, COLOR_BG);
-        tft.setCursor(5, yOffset);
-        tft.print(buf);
+        // Icono de señal (el mismo de la fila "ESCANEAR" del menu) a
+        // la izquierda de cada red - en amarillo si es abierta (sin
+        // clave), en cian si tiene clave, calcado del resto de listas
+        // de esta pantalla. El numero suelto de antes ("1.", "2.") ya
+        // no hace falta: el icono cumple el mismo rol de marcador.
+        uint16_t colorFila = redes[i].tieneClave ? COLOR_CAT_CYAN : COLOR_WARN;
+        tft.drawBitmap(5, yOffset - 1, ICONO_ESCANEAR, ICONO_ANCHO, ICONO_ALTO, colorFila, COLOR_BG);
+        int xTexto = 5 + ICONO_ANCHO + 4;
+
+        tft.setTextColor(colorFila, COLOR_BG);
+        tft.setCursor(xTexto, yOffset);
+        tft.print(strlen(redes[i].ssid) == 0 ? "*OCULTA*" : redes[i].ssid);
 
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(TFT_PANEL_WIDTH - 70, yOffset);
@@ -614,7 +762,7 @@ void dibujarListaRedes() {
 
 void dibujarPantallaStats() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("STATS");
+    dibujarTituloSeccion("STATS", COLOR_CAT_YELLOW, ICONO_STATS);
 
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 35);
@@ -649,13 +797,13 @@ void dibujarPantallaStats() {
 
 void dibujarPantallaWardrive() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("WARDRIVE");
+    dibujarTituloSeccion("WARDRIVE", COLOR_CAT_VIOLET, ICONO_WARDRIVE);
 
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 35);
     tft.print("GPS: ");
     GPSData pos = gps.getData();
-    tft.setTextColor(pos.valid ? COLOR_ACCENT : COLOR_WARN, COLOR_BG);
+    tft.setTextColor(pos.valid ? COLOR_CAT_VIOLET : COLOR_WARN, COLOR_BG);
     tft.print(pos.valid ? "FIX" : "SIN FIX");
 
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
@@ -680,7 +828,7 @@ void dibujarPantallaWardrive() {
     tft.setCursor(10, CONTENT_TOP + 95);
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.print("Filtro [toca]: ");
-    tft.setTextColor(COLOR_ACCENT, COLOR_BG);
+    tft.setTextColor(COLOR_CAT_VIOLET, COLOR_BG);
     if (filtroWardrive == 0) {
         tft.print("Todas");
     } else if (filtroWardrive == 1) {
@@ -704,7 +852,7 @@ void dibujarPantallaWardrive() {
         tft.setTextColor(COLOR_DANGER, COLOR_BG);
         tft.print("Error: sin SD o sin datos");
     } else {
-        tft.setTextColor(ultimoExportKML > 0 ? COLOR_ACCENT : COLOR_WARN, COLOR_BG);
+        tft.setTextColor(ultimoExportKML > 0 ? COLOR_CAT_VIOLET : COLOR_WARN, COLOR_BG);
         tft.print("wardriving.kml: ");
         tft.print(ultimoExportKML);
         tft.print(" puntos");
@@ -767,7 +915,7 @@ void actualizarDiagnosticoHardware() {
 
 void dibujarPantallaConfig() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("CONFIG");
+    dibujarTituloSeccion("CONFIG", COLOR_CAT_BLUE, ICONO_CONFIG);
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 35);
@@ -794,7 +942,7 @@ void dibujarPantallaConfig() {
     tft.print("SD: ");
     SD.end();
     bool sdOk = SD.begin(SD_CS_PIN);
-    tft.setTextColor(sdOk ? COLOR_ACCENT : COLOR_DANGER, COLOR_BG);
+    tft.setTextColor(sdOk ? COLOR_CAT_BLUE : COLOR_DANGER, COLOR_BG);
     tft.print(sdOk ? "OK" : "No detectada");
 
     // La frecuencia de CPU no cambia sola en tiempo de ejecucion (no
@@ -842,14 +990,40 @@ void manejarToque(int x, int y) {
 
     switch (pantallaActual) {
         case SCREEN_TOOLS:
-            for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
-                Herramienta& h = herramientas[i];
-                if (y >= h.y && y <= h.y + h.h) {
+            for (int i = 0; i < CANTIDAD_CATEGORIAS; i++) {
+                Categoria& c = categorias[i];
+                if (y >= c.y && y <= c.y + c.h) {
                     // No navegamos todavia: primero se ve el destello
                     // (fila invertida) como feedback de que el toque se
                     // registro, y recien cuando pasa DESTELLO_MS (ver
-                    // loop()) se entra de verdad a la pantalla destino.
+                    // loop()) se entra de verdad al submenu de esta
+                    // categoria. categoriaSeleccionada se fija ya
+                    // mismo (no cuando termina el destello) porque
+                    // dibujarPantallaHerramientasSub() lo necesita
+                    // desde el primer frame en que se dibuja.
                     filaDestellada = i;
+                    momentoDestello = millis();
+                    destinoPendiente = SCREEN_TOOLS_SUB;
+                    categoriaSeleccionada = i;
+                    contenidoSucio = true;
+                    return;
+                }
+            }
+            break;
+        case SCREEN_TOOLS_SUB: {
+            // Misma logica de destello que SCREEN_TOOLS, pero sobre la
+            // lista FILTRADA de esta categoria - ver el comentario de
+            // layoutHerramientasDeCategoria() para por que se arma de
+            // nuevo aca en vez de leer una cacheada. filaDestellada
+            // guarda la POSICION dentro de esta lista filtrada (0..k),
+            // no el indice global en herramientas[] - coincide con lo
+            // que espera dibujarPantallaHerramientasSub().
+            int indices[CANTIDAD_HERRAMIENTAS];
+            int cantidad = layoutHerramientasDeCategoria(categoriaSeleccionada, indices);
+            for (int k = 0; k < cantidad; k++) {
+                Herramienta& h = herramientas[indices[k]];
+                if (y >= h.y && y <= h.y + h.h) {
+                    filaDestellada = k;
                     momentoDestello = millis();
                     destinoPendiente = h.destino;
                     contenidoSucio = true;
@@ -857,6 +1031,7 @@ void manejarToque(int x, int y) {
                 }
             }
             break;
+        }
         case SCREEN_SCAN: {
             // Mientras hay un escaneo o un conteo de clientes en
             // curso, un toque no hace nada - hay que esperar a que
@@ -951,7 +1126,7 @@ void setup() {
 
     touchDriver.begin();
     calcularLayoutMenu();
-    calcularLayoutHerramientas();
+    calcularLayoutCategorias();
     mascota.init(&tft);
     ultimoToque = millis();
 
@@ -1143,7 +1318,10 @@ void loop() {
         if (contenidoSucio) {
             switch (pantallaActual) {
                 case SCREEN_TOOLS:
-                    dibujarPantallaHerramientas();
+                    dibujarPantallaCategorias();
+                    break;
+                case SCREEN_TOOLS_SUB:
+                    dibujarPantallaHerramientasSub();
                     break;
                 case SCREEN_SCAN:
                     dibujarListaRedes();
