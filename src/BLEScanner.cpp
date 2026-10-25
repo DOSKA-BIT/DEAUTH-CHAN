@@ -61,6 +61,17 @@ private:
     BLEScanner* duenio;
 };
 
+// NimBLEScan::start() sin esta funcion se queda esperando, bloqueado,
+// a que el escaneo termine solo para recien ahi devolver el control -
+// con duracion 0 (continuo) eso nunca pasa, asi que begin() se
+// colgaba para siempre aca (confirmado en el log: se congelaba justo
+// despues de "PCAP listo", antes de GPS o WiFi). Pasandole ESTA
+// funcion como "scanCompleteCB", start() toma el otro camino interno
+// (no bloqueante) y vuelve enseguida - en uso normal ni se llega a
+// invocar, porque un escaneo continuo no "termina" nunca por su
+// cuenta.
+static void onScanCompleto(NimBLEScanResults resultados) {}
+
 void BLEScanner::begin() {
     NimBLEDevice::init("");
 
@@ -79,7 +90,7 @@ void BLEScanner::begin() {
     // el monitor de deauth/disassoc de WiFi: corre solo de fondo desde
     // el arranque, sin que haga falta prender nada a mano para que
     // empiece a sumar dispositivos.
-    pScan->start(0, false);
+    pScan->start(0, onScanCompleto, false);
 }
 
 void BLEScanner::onDispositivoVisto(const uint8_t* mac, int rssi, const char* nombre,
