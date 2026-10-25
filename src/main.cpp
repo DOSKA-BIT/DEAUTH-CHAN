@@ -14,6 +14,8 @@
 #include "Mascota.h"
 #include "WiFiScanner.h"
 #include "PCAPWriter.h"
+#include "BLEScanner.h"
+#include "BLE_DB.h"
 #include "GPSModule.h"
 #include "Wardriving.h"
 #include "Learning.h"
@@ -34,6 +36,7 @@ TFT_eSPI tft = TFT_eSPI();
 Mascota mascota;
 WiFiScanner scanner;
 PCAPWriter pcap;
+BLEScanner radar;
 GPSModule gps;
 Wardriving wardriver;
 Learning aprendizaje;
@@ -94,7 +97,8 @@ enum MenuScreen {
     SCREEN_EVENTOS,
     SCREEN_MONITOR,
     SCREEN_CANALES,
-    SCREEN_DUPLICADOS
+    SCREEN_DUPLICADOS,
+    SCREEN_RADAR
 };
 MenuScreen pantallaActual = SCREEN_MAIN;
 
@@ -143,7 +147,7 @@ void calcularLayoutMenu() {
 // fijas, asi que van en su propio array chico en vez de inventarse
 // aparte de herramientas[] - cada Herramienta de mas abajo apunta a
 // una de estas por indice (campo "categoria").
-enum { CAT_WIFI, CAT_WARDRIVING, CAT_AJUSTES, CANTIDAD_CATEGORIAS };
+enum { CAT_WIFI, CAT_WARDRIVING, CAT_RADAR, CAT_AJUSTES, CANTIDAD_CATEGORIAS };
 
 struct Categoria {
     const char* nombre;
@@ -159,6 +163,7 @@ struct Categoria {
 Categoria categorias[CANTIDAD_CATEGORIAS] = {
     {"WIFI",       "Escaneo, stats, conocidas, monitor y eventos", COLOR_CAT_CYAN,   ICONO_ESCANEAR, 0, 0},
     {"WARDRIVING", "Guardado de ubicacion + redes en la SD",       COLOR_CAT_VIOLET, ICONO_WARDRIVE, 0, 0},
+    {"RADAR",      "Dispositivos BLE cerca y red Find My de Apple",COLOR_CAT_GREEN,  ICONO_RADAR,    0, 0},
     {"AJUSTES",    "Datos de la placa y el estado de la SD",       COLOR_CAT_BLUE,   ICONO_CONFIG,   0, 0},
 };
 
@@ -195,6 +200,7 @@ Herramienta herramientas[] = {
     {"CANALES",   "Uso del espectro, canal por canal", CAT_WIFI,       SCREEN_CANALES,   COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
     {"DUPLICADO", "SSID repetido en el ultimo escaneo",CAT_WIFI,       SCREEN_DUPLICADOS,COLOR_CAT_RED,    ICONO_DUPLICADO, 0, 0},
     {"WARDRIVE",  "Guardar ubicacion + redes en SD",  CAT_WARDRIVING, SCREEN_WARDRIVE,  COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0},
+    {"RADAR",     "BLE cerca + red Find My de Apple", CAT_RADAR,      SCREEN_RADAR,     COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0},
     {"CONFIG",    "Datos de la placa y la SD",        CAT_AJUSTES,    SCREEN_CONFIG,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
 };
 const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0]);
@@ -968,6 +974,71 @@ void dibujarPantallaDuplicados() {
     }
 }
 
+// RADAR: lista en vivo de dispositivos BLE escuchados (ver el
+// comentario largo en BLEScanner.h de que detecta esto de verdad y
+// que no). Se repinta sola cada 1s mientras estamos parados en esta
+// pantalla (igual que SCREEN_MONITOR en loop()), porque a diferencia
+// de ESCANEAR esto no es algo que se "dispare" con un boton - el
+// radar ya esta escuchando de fondo desde que arranco el firmware.
+void dibujarPantallaRadar() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("RADAR", COLOR_CAT_GREEN, ICONO_RADAR);
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+
+    int numDisp = 0;
+    DispositivoBLE* dispositivos = radar.getDispositivos(numDisp);
+
+    if (numDisp == 0) {
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(10, top + 10);
+        tft.print("Escuchando BLE...");
+        dibujarPieAyuda("Todavia no se escucho ningun dispositivo");
+        return;
+    }
+
+    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / 28;
+    int yOffset = top + 2;
+    unsigned long ahora = millis();
+
+    for (int i = 0; i < numDisp && i < maxVisibles; i++) {
+        DispositivoBLE& d = dispositivos[i];
+        bool esViejo = (ahora - d.ultimaVez) > 30000; // mas de 30s sin escucharlo de nuevo
+
+        uint16_t color = d.esFindMyApple ? COLOR_DANGER : (esViejo ? COLOR_TEXT_DIM : COLOR_TEXT);
+        tft.drawBitmap(5, yOffset + 1, ICONO_RADAR, ICONO_ANCHO, ICONO_ALTO, color, COLOR_BG);
+        int xTexto = 5 + ICONO_ANCHO + 4;
+
+        tft.setTextColor(color, COLOR_BG);
+        tft.setCursor(xTexto, yOffset);
+        if (d.esFindMyApple) {
+            tft.print("Find My (Apple)");
+        } else if (strlen(d.nombre) > 0) {
+            tft.print(d.nombre);
+        } else {
+            const char* fab = buscarFabricanteBLE(d.companyId);
+            tft.print(fab);
+        }
+
+        char info[24];
+        snprintf(info, sizeof(info), "%ddBm  ..%02X%02X", d.rssi, d.mac[4], d.mac[5]);
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(xTexto, yOffset + 14);
+        tft.print(info);
+
+        yOffset += 28;
+    }
+
+    unsigned long totalVistos = 0, totalFindMy = 0;
+    radar.getStats(totalVistos, totalFindMy);
+    if (totalFindMy > 0) {
+        char pie[40];
+        snprintf(pie, sizeof(pie), "%lu en red Find My - no es 100%% un AirTag", totalFindMy);
+        dibujarPieAyuda(pie);
+    } else {
+        dibujarPieAyuda("Rojo = red Find My de Apple cerca");
+    }
+}
+
 void dibujarPantallaStats() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
     dibujarTituloSeccion("STATS", COLOR_CAT_YELLOW, ICONO_STATS);
@@ -1452,6 +1523,7 @@ void setup() {
 
     gps.begin();
     scanner.begin();
+    radar.begin(); // RADAR: escaneo BLE pasivo, corre de fondo desde el arranque (ver BLEScanner.h)
     wardriver.begin();
     aprendizaje.begin();
     eventos.begin();
@@ -1677,6 +1749,9 @@ void loop() {
                 case SCREEN_DUPLICADOS:
                     dibujarPantallaDuplicados();
                     break;
+                case SCREEN_RADAR:
+                    dibujarPantallaRadar();
+                    break;
                 default:
                     break;
             }
@@ -1715,6 +1790,22 @@ void loop() {
                 ultimoRefrescoMonitor = ahoraMonitor;
                 if (!cambioPantalla) {
                     dibujarPantallaMonitor();
+                }
+            }
+        }
+
+        // Mismo patron que Monitor: RADAR tambien vive de datos que se
+        // acumulan solos de fondo (el callback de BLE), asi que sin
+        // esto la lista se quedaria congelada en lo que habia apenas
+        // entraste a la pantalla hasta que la tocaras o salieras y
+        // volvieras a entrar.
+        if (pantallaActual == SCREEN_RADAR) {
+            static unsigned long ultimoRefrescoRadar = 0;
+            unsigned long ahoraRadar = millis();
+            if (cambioPantalla || ahoraRadar - ultimoRefrescoRadar >= 1000) {
+                ultimoRefrescoRadar = ahoraRadar;
+                if (!cambioPantalla) {
+                    dibujarPantallaRadar();
                 }
             }
         }

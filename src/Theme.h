@@ -41,6 +41,7 @@
 #define COLOR_CAT_YELLOW    0xEE27   // estadisticas / acciones destacadas
 #define COLOR_CAT_BLUE      0x547F   // configuracion / ajustes, categoria neutra
 #define COLOR_CAT_WHITE     COLOR_TEXT // listas simples / informativas (conocidas, eventos)
+#define COLOR_CAT_GREEN     0x56CF   // radar / deteccion de dispositivos BLE cercanos
 
 // Avisos y errores: mantienen su propio matiz (ya no comparten color
 // con el acento general como en la paleta monocroma), para que un
