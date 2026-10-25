@@ -1521,9 +1521,17 @@ void setup() {
         Serial.println("PCAP listo");
     }
 
+    // radar.begin() (Bluetooth) va ANTES que scanner.begin() (WiFi) a
+    // proposito: los dos comparten el mismo radio 2.4GHz del ESP32, y
+    // si WiFi ya lo prendio en modo promiscuo cuando Bluetooth intenta
+    // inicializarse, esp_bt_controller_init() lo encuentra en un
+    // estado que no puede manejar y aborta (ESP_ERR_INVALID_STATE,
+    // visto en el log serie: "abort() was called" justo en
+    // NimBLEDevice::init). Inicializar Bluetooth primero, con el radio
+    // todavia "limpio", evita ese choque.
+    radar.begin(); // RADAR: escaneo BLE pasivo, corre de fondo desde el arranque (ver BLEScanner.h)
     gps.begin();
     scanner.begin();
-    radar.begin(); // RADAR: escaneo BLE pasivo, corre de fondo desde el arranque (ver BLEScanner.h)
     wardriver.begin();
     aprendizaje.begin();
     eventos.begin();
