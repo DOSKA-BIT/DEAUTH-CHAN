@@ -9,6 +9,23 @@
 #define CLIENTE_TIMEOUT 10000
 #define CONTEO_CLIENTES_MS 3000
 #define MAX_ANOMALIAS_RAM 8
+#define PCAP_BUFFER_SIZE 16
+#define PCAP_FRAME_MAX 128
+
+// Copia cruda de UN frame de management (beacon, probe req/resp,
+// deauth o disassoc - ver el filtro en promiscuousCallback()) para
+// pasarla de la tarea del driver WiFi al loop() principal, que es
+// quien de verdad la escribe a la SD via PCAPWriter. Si el frame es
+// mas largo que PCAP_FRAME_MAX se trunca (quedan intactos el header
+// 802.11 y el SSID/parametros del principio, que es lo que importa
+// para abrir el pcap en Wireshark - el resto de un beacon largo son
+// tags opcionales que no hacen falta para esto).
+struct PaqueteCrudoWiFi {
+    uint8_t datos[PCAP_FRAME_MAX];
+    uint16_t len;
+    uint32_t ts_sec;
+    uint32_t ts_usec;
+};
 
 // Un frame de deauth o disassoc suelto es normal (un router dando de
 // baja a un cliente que se fue, por ejemplo). Esto no decide si un
@@ -76,10 +93,31 @@ public:
     void getAnomaliasStats(unsigned long& deauth, unsigned long& disassoc);
     AnomaliaWiFi* getAnomalias(int& count);
 
+    // Captura cruda para PCAP (beacons, probe req/resp, deauth y
+    // disassoc - frames de management, nada de datos ni EAPOL/
+    // handshakes). Apagada por defecto: activarPCAP(true) la prende,
+    // pero quien de verdad escribe a la SD es main.cpp (loop()), no
+    // este archivo - ver el comentario largo de pcapBuffer mas abajo
+    // de por que escribir a la SD desde ACA seria peligroso.
+    //
+    // pcapActivo es el UNICO campo de esta clase que se lee/escribe
+    // SIN el mux (a proposito, a diferencia de todo lo demas de aca
+    // abajo): es un simple bool, un solo lugar lo escribe (el toque en
+    // Monitor, via esta funcion) y un solo lugar lo lee
+    // (promiscuousCallback), y en el peor caso de carrera se captura o
+    // se descarta UN frame de mas justo en el instante del toque - no
+    // hay forma de que quede un valor "a medio escribir" como si
+    // pasaria con un struct de varios campos.
+    void activarPCAP(bool activo) { pcapActivo = activo; }
+    bool pcapEstaActivo() const { return pcapActivo; }
+    unsigned long getPCAPCapturados() const { return pcapCapturados; }
+    bool sacarPaquetePCAP(PaqueteCrudoWiFi& out);
+
 private:
     static void promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type);
     void actualizarCliente(uint8_t* mac, int rssi, uint8_t* bssid, int canal);
     void registrarAnomalia(bool esDisassoc, uint8_t* origen, uint8_t* destino, int canal, int rssi);
+    void empujarPCAP(const uint8_t* frame, uint16_t len);
 
     void finalizarConteoClientes();
 
@@ -110,6 +148,35 @@ private:
     // esto, una pantalla podria leer un MAC o un contador a medio
     // escribir justo cuando llega un paquete.
     portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
+    // Buffer circular chico para la captura cruda de PCAP.
+    // empujarPCAP() (llamado desde promiscuousCallback(), tarea del
+    // driver WiFi) escribe en pcapEscribirIdx bajo el mux de arriba;
+    // sacarPaquetePCAP() (llamado desde loop(), tarea principal) lee
+    // de pcapLeerIdx, tambien bajo el mux. Esto es justo el mismo
+    // patron "snapshot bajo lock" que ya usan getClientes()/
+    // getAnomalias() mas arriba, nada mas que en vez de copiar TODO el
+    // array de una, como son muchos paquetes chiquitos por segundo,
+    // se van sacando de a uno.
+    //
+    // El motivo de que este buffer exista: escribir a la SD
+    // DIRECTAMENTE desde promiscuousCallback() (la tarea del driver
+    // WiFi) podria chocar con una escritura a la SD que este haciendo
+    // el loop() principal en simultaneo (wardriving, eventos,
+    // aprendizaje) - dos tareas distintas escribiendole a la misma
+    // tarjeta SPI al mismo tiempo es tierra de corrupcion de
+    // filesystem, no solo de un dato mal leido. Por eso
+    // promiscuousCallback() solo copia bytes a RAM (rapido, no toca
+    // SPI), y es loop() el que drena este buffer y llama a
+    // PCAPWriter::writePacket() de a un paquete por vuelta, en el
+    // mismo lugar (la tarea principal) donde ya se hacen todas las
+    // demas escrituras a la SD del firmware.
+    PaqueteCrudoWiFi pcapBuffer[PCAP_BUFFER_SIZE];
+    int pcapEscribirIdx = 0;
+    int pcapLeerIdx = 0;
+    int pcapPendientes = 0;
+    bool pcapActivo = false;
+    unsigned long pcapCapturados = 0; // total historico, para mostrar en pantalla
 
     static WiFiScanner* instance;
 };

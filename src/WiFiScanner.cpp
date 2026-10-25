@@ -168,6 +168,46 @@ AnomaliaWiFi* WiFiScanner::getAnomalias(int& count) {
     return anomaliasSnapshot;
 }
 
+void WiFiScanner::empujarPCAP(const uint8_t* frame, uint16_t len) {
+    // Corre dentro de promiscuousCallback() (tarea del driver WiFi).
+    // Solo copia bytes a RAM bajo el mux - nada de SD aca, ver el
+    // comentario largo de pcapBuffer en el .h de por que.
+    portENTER_CRITICAL(&mux);
+    if (pcapPendientes < PCAP_BUFFER_SIZE) {
+        PaqueteCrudoWiFi& p = pcapBuffer[pcapEscribirIdx];
+        uint16_t copiar = (len > PCAP_FRAME_MAX) ? PCAP_FRAME_MAX : len;
+        memcpy(p.datos, frame, copiar);
+        p.len = copiar;
+        unsigned long ahora = millis();
+        p.ts_sec = ahora / 1000;
+        p.ts_usec = (ahora % 1000) * 1000;
+        pcapEscribirIdx = (pcapEscribirIdx + 1) % PCAP_BUFFER_SIZE;
+        pcapPendientes++;
+        pcapCapturados++;
+    }
+    // Si el buffer esta lleno (loop() no llego a drenarlo a tiempo),
+    // se descarta el paquete nuevo en vez de pisar uno viejo todavia
+    // no escrito - preferible perder UN paquete de mas a complicar la
+    // lectura con paquetes parcialmente sobreescritos. En uso normal
+    // (loop() drena en cada vuelta, ver main.cpp) esto no deberia
+    // pasar salvo una rafaga muy densa de beacons.
+    portEXIT_CRITICAL(&mux);
+}
+
+bool WiFiScanner::sacarPaquetePCAP(PaqueteCrudoWiFi& out) {
+    // Corre desde loop() (tarea principal) - ver el comentario largo
+    // de pcapBuffer en el .h.
+    portENTER_CRITICAL(&mux);
+    bool hay = pcapPendientes > 0;
+    if (hay) {
+        out = pcapBuffer[pcapLeerIdx];
+        pcapLeerIdx = (pcapLeerIdx + 1) % PCAP_BUFFER_SIZE;
+        pcapPendientes--;
+    }
+    portEXIT_CRITICAL(&mux);
+    return hay;
+}
+
 void WiFiScanner::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type) {
     if (!instance) return;
 
@@ -193,6 +233,20 @@ void WiFiScanner::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t typ
         // clientes de aca abajo.
         instance->registrarAnomalia(subtipoFrame == 0x0A, &frame[10], &frame[4],
             pkt->rx_ctrl.channel, rssi);
+    }
+
+    // Captura cruda para PCAP (si esta activada desde Monitor): mismo
+    // chequeo de tipo/subtipo que el monitor de deauth/disassoc de
+    // arriba, mas beacon (0x08) y probe request/response (0x04/0x05) -
+    // todo frame de management que explica "que hay dando vueltas en
+    // el aire", nada de datos ni de handshakes. Va antes del "return"
+    // de aca abajo por el mismo motivo que el monitor: tiene que ver
+    // TODO paquete, no solo mientras se cuenta clientes de un BSSID
+    // puntual.
+    if (instance->pcapActivo && tipoFrame == 0 &&
+        (subtipoFrame == 0x08 || subtipoFrame == 0x04 || subtipoFrame == 0x05 ||
+         subtipoFrame == 0x0C || subtipoFrame == 0x0A)) {
+        instance->empujarPCAP(frame, len);
     }
 
     if (!instance->escuchandoClientes) return;

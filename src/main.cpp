@@ -57,6 +57,12 @@ int filtroWardrive = 0;
 // 0 o mas = cantidad de puntos que escribio.
 int ultimoExportKML = -2;
 
+// Mismo significado que ultimoExportKML de arriba, pero para el
+// resumen de sesion que se exporta desde la pantalla de Eventos (ver
+// exportarResumenSesion() mas abajo): -2 = no se toco el boton
+// todavia, -1 = fallo (sin SD), 0 o mas = cuantas lineas escribio.
+int ultimoExportResumen = -2;
+
 // Indice (dentro de redes[]) de la red cuyo conteo de clientes se
 // esta mostrando/mostro ultimo en la pantalla de Escaneo. -1 = no hay
 // ningun resultado de conteo para mostrar, se ve la lista de redes
@@ -86,7 +92,9 @@ enum MenuScreen {
     SCREEN_CONFIG,
     SCREEN_CONOCIDAS,
     SCREEN_EVENTOS,
-    SCREEN_MONITOR
+    SCREEN_MONITOR,
+    SCREEN_CANALES,
+    SCREEN_DUPLICADOS
 };
 MenuScreen pantallaActual = SCREEN_MAIN;
 
@@ -184,6 +192,8 @@ Herramienta herramientas[] = {
     {"CONOCIDAS", "Redes guardadas, por senial",      CAT_WIFI,       SCREEN_CONOCIDAS, COLOR_CAT_WHITE,  ICONO_CONOCIDAS, 0, 0},
     {"MONITOR",   "Deauth/disassoc detectados",       CAT_WIFI,       SCREEN_MONITOR,   COLOR_CAT_RED,    ICONO_MONITOR,   0, 0},
     {"EVENTOS",   "Historial de esta sesion",         CAT_WIFI,       SCREEN_EVENTOS,   COLOR_CAT_BLUE,   ICONO_EVENTOS,   0, 0},
+    {"CANALES",   "Uso del espectro, canal por canal", CAT_WIFI,       SCREEN_CANALES,   COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
+    {"DUPLICADO", "SSID repetido en el ultimo escaneo",CAT_WIFI,       SCREEN_DUPLICADOS,COLOR_CAT_RED,    ICONO_DUPLICADO, 0, 0},
     {"WARDRIVE",  "Guardar ubicacion + redes en SD",  CAT_WARDRIVING, SCREEN_WARDRIVE,  COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0},
     {"CONFIG",    "Datos de la placa y la SD",        CAT_AJUSTES,    SCREEN_CONFIG,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
 };
@@ -206,6 +216,18 @@ const int ALTO_TITULO_SECCION = 30;
 // pantallas via dibujarPieAyuda() (definida mas abajo) para quedar
 // todas parejas.
 const int ALTO_PIE_AYUDA = 34;
+
+// Alto del boton fijo de "exportar resumen" arriba de la lista de
+// Eventos (ver dibujarPantallaEventos() y manejarToque(), caso
+// SCREEN_EVENTOS - comparten este mismo numero para que el toque
+// coincida siempre con lo que se ve dibujado).
+const int ALTO_BOTON_EXPORTAR = 22;
+
+// Alto del bloque fijo de arriba de Monitor (contadores de deauth/
+// disassoc + el toggle de captura PCAP), antes de que arranque la
+// lista de anomalias - ver dibujarPantallaMonitor() y manejarToque(),
+// caso SCREEN_MONITOR.
+const int ALTO_BLOQUE_MONITOR = 54;
 
 // Layout del menu de categorias (SCREEN_TOOLS) - son siempre 3, fijas,
 // asi que esto se calcula una sola vez en setup() como antes se hacia
@@ -511,12 +533,38 @@ void dibujarPantallaEventos() {
     dibujarTituloSeccion("EVENTOS", COLOR_CAT_BLUE, ICONO_EVENTOS);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
+    // Boton fijo arriba de la lista para exportar /resumen.txt con
+    // TODA la sesion (no solo los eventos - ver exportarResumenSesion()
+    // mas arriba) a la SD. Siempre visible, incluso sin eventos
+    // todavia, porque el resumen tambien tiene datos de WiFi/
+    // Wardriving que pueden existir igual. manejarToque(), caso
+    // SCREEN_EVENTOS, usa estos mismos numeros para que el toque
+    // coincida con lo dibujado.
+    tft.setTextColor(COLOR_WARN, COLOR_BG);
+    tft.setCursor(10, top + 2);
+    tft.print("[Toca para exportar resumen .txt]");
+
+    if (ultimoExportResumen < 0 && ultimoExportResumen != -2) {
+        tft.setTextColor(COLOR_DANGER, COLOR_BG);
+        tft.setCursor(10, top + 14);
+        tft.print("Error: la SD no respondio");
+    } else if (ultimoExportResumen >= 0) {
+        tft.setTextColor(COLOR_CAT_BLUE, COLOR_BG);
+        tft.setCursor(10, top + 14);
+        tft.print("resumen.txt: ");
+        tft.print(ultimoExportResumen);
+        tft.print(" lineas");
+    }
+
+    tft.drawFastHLine(10, top + ALTO_BOTON_EXPORTAR, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
+    int top2 = top + ALTO_BOTON_EXPORTAR + 4;
+
     int total = 0;
     EventoLog* lista = eventos.getEventos(total);
 
     if (total == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(10, top + 10);
+        tft.setCursor(10, top2 + 10);
         tft.print("Todavia no paso nada en esta sesion");
         dibujarPieAyuda("El historial empieza al encender");
         return;
@@ -524,8 +572,8 @@ void dibujarPantallaEventos() {
 
     // El mas reciente ya queda primero en el array (ver EventLog::
     // registrar), asi que aca alcanza con recorrerlo en orden.
-    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / 34;
-    int yOffset = top + 2;
+    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_BOTON_EXPORTAR - ALTO_PIE_AYUDA) / 34;
+    int yOffset = top2 + 2;
     int mostradas = (total < maxVisibles) ? total : maxVisibles;
 
     for (int i = 0; i < mostradas; i++) {
@@ -578,12 +626,32 @@ void dibujarPantallaMonitor() {
 
     tft.drawFastHLine(5, top + 18, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
 
+    // Captura cruda a .pcap (beacons, probe req/resp, deauth y
+    // disassoc - ver WiFiScanner::activarPCAP()/pcapBuffer). Tocar
+    // esta franja prende o apaga la grabacion - manejarToque(), caso
+    // SCREEN_MONITOR, usa el mismo ALTO_BLOQUE_MONITOR para que el
+    // toque coincida con lo dibujado aca.
+    bool pcapOn = scanner.pcapEstaActivo();
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(5, top + 22);
+    tft.print("PCAP: ");
+    tft.setTextColor(pcapOn ? COLOR_DANGER : COLOR_TEXT_DIM, COLOR_BG);
+    tft.print(pcapOn ? "grabando (toca p/parar)" : "apagado (toca p/grabar)");
+
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(5, top + 34);
+    tft.print("Paquetes guardados: ");
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.print(scanner.getPCAPCapturados());
+
+    tft.drawFastHLine(5, top + ALTO_BLOQUE_MONITOR, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
+
     int total = 0;
     AnomaliaWiFi* lista = scanner.getAnomalias(total);
 
     if (total == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(10, top + 36);
+        tft.setCursor(10, top + ALTO_BLOQUE_MONITOR + 10);
         tft.print("Nada detectado por ahora");
         dibujarPieAyuda("Pasivo: solo mira, no transmite nada");
         return;
@@ -594,8 +662,8 @@ void dibujarPantallaMonitor() {
     // asi que esta lista solo ve lo que pasa en ESE canal - no es un
     // monitor de toda la banda 2.4GHz a la vez. Igual sirve para
     // notar una rafaga de deauth mientras mirás esa red puntual.
-    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - 30 - ALTO_PIE_AYUDA) / 34;
-    int yOffset = top + 28;
+    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_BLOQUE_MONITOR - ALTO_PIE_AYUDA) / 34;
+    int yOffset = top + ALTO_BLOQUE_MONITOR + 4;
     int mostradas = (total < maxVisibles) ? total : maxVisibles;
 
     for (int i = 0; i < mostradas; i++) {
@@ -760,6 +828,146 @@ void dibujarListaRedes() {
     }
 }
 
+// Cuenta, canal por canal (1 a 13 - el rango de 2.4GHz en casi todo el
+// mundo), cuantas redes del ULTIMO escaneo (redes[]/numRedes, los
+// mismos que llena dibujarListaRedes()) hay en cada uno, y lo muestra
+// como un grafico de barras horizontales. Util para elegir un canal
+// poco usado al configurar un router propio - no hace falta ningun
+// dato nuevo, son los mismos que ya guarda cada escaneo.
+void dibujarPantallaCanales() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("CANALES", COLOR_CAT_YELLOW, ICONO_CANALES);
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+
+    if (numRedes == 0) {
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(10, top + 10);
+        tft.print("Hace falta un escaneo primero");
+        dibujarPieAyuda("Anda a ESCANEAR y volve aca");
+        return;
+    }
+
+    int conteo[13] = {0};
+    int maxConteo = 1; // nunca 0, para no dividir por 0 mas abajo
+    for (int i = 0; i < numRedes; i++) {
+        int ch = redes[i].canal;
+        if (ch >= 1 && ch <= 13) {
+            conteo[ch - 1]++;
+            if (conteo[ch - 1] > maxConteo) maxConteo = conteo[ch - 1];
+        }
+    }
+
+    const int FILAS = 13;
+    int altoFila = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / FILAS;
+    if (altoFila < 10) altoFila = 10; // las 13 filas entran apretadas igual en pantallas chicas
+    int xBarra = 38;
+    int anchoMaxBarra = TFT_PANEL_WIDTH - xBarra - 35; // deja lugar al numero de la derecha
+
+    int y = top + 2;
+    for (int ch = 1; ch <= 13; ch++) {
+        int cant = conteo[ch - 1];
+        int anchoBarra = (cant * anchoMaxBarra) / maxConteo;
+        if (cant > 0 && anchoBarra < 2) anchoBarra = 2; // que se note aunque sea una sola red
+
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(2, y);
+        tft.print("CH");
+        tft.print(ch);
+
+        tft.fillRect(xBarra, y, anchoMaxBarra, 8, COLOR_PANEL);
+        if (anchoBarra > 0) {
+            tft.fillRect(xBarra, y, anchoBarra, 8, COLOR_CAT_YELLOW);
+        }
+
+        tft.setTextColor(COLOR_TEXT, COLOR_BG);
+        tft.setCursor(xBarra + anchoMaxBarra + 4, y);
+        tft.print(cant);
+
+        y += altoFila;
+    }
+
+    dibujarPieAyuda("Barra mas corta = canal menos saturado");
+}
+
+// Compara las redes del ULTIMO escaneo entre si (no contra el
+// historial de Conocidas - un router nuevo o un mesh agregado despues
+// darian falsos positivos ahi) y marca que SSID aparece con mas de un
+// BSSID distinto EN EL MISMO escaneo. Esa es la señal pasiva clasica
+// de un posible "gemelo malvado": algo mas transmitiendo el mismo
+// nombre de red que una real. No es una certeza (una red mesh real de
+// varios routers con el mismo nombre da el mismo patron) - por eso el
+// pie de esta pantalla aclara que es una pista, no una acusacion.
+void dibujarPantallaDuplicados() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("DUPLICADO", COLOR_CAT_RED, ICONO_DUPLICADO);
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+
+    if (numRedes == 0) {
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(10, top + 10);
+        tft.print("Hace falta un escaneo primero");
+        dibujarPieAyuda("Anda a ESCANEAR y volve aca");
+        return;
+    }
+
+    // Las redes ocultas (SSID vacio) se ignoran a proposito: entre
+    // ellas serian "duplicados" sin decir nada real, total ninguna
+    // tiene nombre que comparar.
+    bool sospechosa[MAX_REDES_ESCANEO] = {false};
+    int totalSospechosas = 0;
+    for (int i = 0; i < numRedes; i++) {
+        if (strlen(redes[i].ssid) == 0) continue;
+        for (int j = i + 1; j < numRedes; j++) {
+            if (strlen(redes[j].ssid) == 0) continue;
+            if (strcmp(redes[i].ssid, redes[j].ssid) == 0 &&
+                memcmp(redes[i].bssid, redes[j].bssid, 6) != 0) {
+                if (!sospechosa[i]) { sospechosa[i] = true; totalSospechosas++; }
+                if (!sospechosa[j]) { sospechosa[j] = true; totalSospechosas++; }
+            }
+        }
+    }
+
+    if (totalSospechosas == 0) {
+        tft.setTextColor(COLOR_TEXT, COLOR_BG);
+        tft.setCursor(10, top + 10);
+        tft.print("Ningun SSID repetido en este escaneo");
+        dibujarPieAyuda("Puede cambiar en el proximo escaneo");
+        return;
+    }
+
+    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / 34;
+    int yOffset = top + 2;
+    int mostradas = 0;
+
+    for (int i = 0; i < numRedes && mostradas < maxVisibles; i++) {
+        if (!sospechosa[i]) continue;
+
+        tft.drawBitmap(5, yOffset + 2, ICONO_DUPLICADO, ICONO_ANCHO, ICONO_ALTO, COLOR_DANGER, COLOR_BG);
+        int xTexto = 5 + ICONO_ANCHO + 4;
+
+        tft.setTextColor(COLOR_DANGER, COLOR_BG);
+        tft.setCursor(xTexto, yOffset);
+        tft.print(redes[i].ssid);
+
+        char macBuf[20];
+        sprintf(macBuf, "..%02X%02X  ch%d", redes[i].bssid[4], redes[i].bssid[5], redes[i].canal);
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(xTexto, yOffset + 16);
+        tft.print(macBuf);
+
+        yOffset += 34;
+        mostradas++;
+    }
+
+    if (totalSospechosas > mostradas) {
+        char masTexto[36];
+        snprintf(masTexto, sizeof(masTexto), "+ %d mas con el mismo problema", totalSospechosas - mostradas);
+        dibujarPieAyuda(masTexto);
+    } else {
+        dibujarPieAyuda("Puede ser mesh real - no es 100% certeza");
+    }
+}
+
 void dibujarPantallaStats() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
     dibujarTituloSeccion("STATS", COLOR_CAT_YELLOW, ICONO_STATS);
@@ -911,6 +1119,77 @@ void actualizarDiagnosticoHardware() {
     char uptimeBuf[16];
     sprintf(uptimeBuf, "%02d:%02d:%02d", horas, minutos, segs);
     tft.print(uptimeBuf);
+}
+
+// Vuelca a /resumen.txt en la SD un reporte legible de TODA la sesion
+// (no solo lo que entra en una pantalla puntual): cuanto hace que esta
+// encendido, cuantas redes vio y aprendio, cuantas anomalias de
+// deauth/disassoc detecto, cuantas anoto Wardriving, y el historial
+// de eventos completo - todo en texto plano para abrir en cualquier
+// lado sin tener que parsear wardriving.csv ni eventos.csv a mano.
+// Mismo patron de SD.end()/SD.begin() que ya usa Wardriving::
+// exportKML() (ver el comentario largo ahi): abre, escribe y cierra
+// en esta misma llamada, nunca deja un File colgado para la proxima.
+// Devuelve cuantas lineas escribio, o -1 si la SD no estaba
+// disponible.
+int exportarResumenSesion() {
+    SD.end();
+    if (!SD.begin(SD_CS_PIN)) {
+        Serial.println("No se pudo montar la SD para el resumen");
+        return -1;
+    }
+
+    File f = SD.open("/resumen.txt", FILE_WRITE);
+    if (!f) {
+        Serial.println("No se pudo crear resumen.txt");
+        return -1;
+    }
+
+    int lineas = 0;
+    unsigned long seg = millis() / 1000;
+    f.println("=== Resumen de sesion - deauth-chan ===");
+    f.printf("Tiempo encendido: %02lu:%02lu:%02lu\n", seg / 3600, (seg % 3600) / 60, seg % 60);
+    lineas += 2;
+
+    f.println();
+    f.println("-- WiFi --");
+    f.printf("Redes vistas en el ultimo escaneo: %d\n", numRedes);
+    f.printf("Redes distintas aprendidas (esta sesion y anteriores): %d\n", aprendizaje.getTotalRedesConocidas());
+    f.printf("Redes nuevas descubiertas en esta sesion: %d\n", mascota.getRedesNuevas());
+    lineas += 4;
+
+    unsigned long deauth = 0, disassoc = 0;
+    scanner.getAnomaliasStats(deauth, disassoc);
+    f.println();
+    f.println("-- Monitor pasivo --");
+    f.printf("Paquetes deauth detectados: %lu\n", deauth);
+    f.printf("Paquetes disassoc detectados: %lu\n", disassoc);
+    lineas += 3;
+
+    f.println();
+    f.println("-- Wardriving --");
+    f.printf("Redes anotadas en wardriving.csv: %d\n", wardriver.getContadorRedes());
+    lineas += 2;
+
+    f.println();
+    f.println("-- Historial de eventos de esta sesion --");
+    int totalEventos = 0;
+    EventoLog* listaEventos = eventos.getEventos(totalEventos);
+    if (totalEventos == 0) {
+        f.println("(sin eventos)");
+        lineas++;
+    } else {
+        // El mas reciente queda primero en el array (ver EventLog::
+        // registrar) - lo volcamos en ese mismo orden.
+        for (int i = 0; i < totalEventos; i++) {
+            f.printf("%s  %s\n", listaEventos[i].timestamp, listaEventos[i].texto);
+            lineas++;
+        }
+    }
+
+    f.close();
+    Serial.printf("resumen.txt generado (%d lineas)\n", lineas);
+    return lineas;
 }
 
 void dibujarPantallaConfig() {
@@ -1107,6 +1386,43 @@ void manejarToque(int x, int y) {
                 contenidoSucio = true; // para mostrar el resultado ya mismo
             }
             break;
+        case SCREEN_EVENTOS: {
+            // Mismos numeros que dibujarPantallaEventos() para su
+            // boton fijo de "exportar resumen" - ver el comentario de
+            // ALTO_BOTON_EXPORTAR mas arriba.
+            int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+            if (y >= top && y <= top + ALTO_BOTON_EXPORTAR) {
+                ultimoExportResumen = exportarResumenSesion();
+                #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+                    // exportarResumenSesion() remonta la SD, igual que
+                    // exportKML() de Wardrive - mismo motivo para
+                    // reclamar el bus aca.
+                    touchDriver.reclaimBus();
+                #endif
+                contenidoSucio = true; // para mostrar el resultado ya mismo
+            }
+            break;
+        }
+        case SCREEN_MONITOR: {
+            // Mismos numeros que dibujarPantallaMonitor() para su
+            // franja de PCAP - ver el comentario de ALTO_BLOQUE_MONITOR
+            // mas arriba. Arranca en top+18 (despues del primer
+            // divisor, el de los contadores) para no confundirse con
+            // un toque en la zona de Deauth/Disassoc, que no hace nada.
+            int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+            if (y >= top + 18 && y <= top + ALTO_BLOQUE_MONITOR) {
+                bool nuevoEstado = !scanner.pcapEstaActivo();
+                scanner.activarPCAP(nuevoEstado);
+                eventos.registrar(nuevoEstado ? "PCAP: grabacion iniciada" : "PCAP: grabacion detenida");
+                #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+                    // registrar() escribe a la SD - mismo motivo de
+                    // siempre para reclamar el bus del touch despues.
+                    touchDriver.reclaimBus();
+                #endif
+                contenidoSucio = true;
+            }
+            break;
+        }
         default:
             break;
     }
@@ -1158,6 +1474,17 @@ void loop() {
     gps.update();
     mascota.update();
     scanner.update(); // corta solo el conteo de clientes a los 3s (ver WiFiScanner::update)
+
+    // Drena el buffer de paquetes crudos de PCAP (si hay algo activado
+    // en Monitor) y recien ACA los escribe a la SD, via
+    // PCAPWriter::writePacket() - nunca desde la tarea de WiFi, que es
+    // donde se llenan (ver el comentario largo de pcapBuffer en
+    // WiFiScanner.h sobre por que). Un paquete por vuelta de loop()
+    // alcanza de sobra para no acumular atraso en uso normal.
+    PaqueteCrudoWiFi paquetePCAP;
+    if (scanner.sacarPaquetePCAP(paquetePCAP)) {
+        pcap.writePacket(paquetePCAP.datos, paquetePCAP.len, paquetePCAP.ts_sec, paquetePCAP.ts_usec);
+    }
 
     // Modo sleep: si nadie toco la pantalla en SLEEP_TIMEOUT_MS y no
     // hay un escaneo ni un conteo de clientes activo, apagamos el
@@ -1343,6 +1670,12 @@ void loop() {
                     break;
                 case SCREEN_MONITOR:
                     dibujarPantallaMonitor();
+                    break;
+                case SCREEN_CANALES:
+                    dibujarPantallaCanales();
+                    break;
+                case SCREEN_DUPLICADOS:
+                    dibujarPantallaDuplicados();
                     break;
                 default:
                     break;

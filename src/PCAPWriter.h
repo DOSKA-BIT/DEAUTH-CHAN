@@ -11,13 +11,18 @@
 class PCAPWriter {
 public:
     bool begin(const char* filename);
+
+    // Abre, escribe y cierra el archivo .pcap de ESTA llamada sola -
+    // ver el comentario largo en el .cpp de por que no se mantiene un
+    // File abierto entre llamadas (es el mismo bug de File invalidado
+    // que ya se arreglo en Wardriving/EventLog, solo que aca con
+    // muchos paquetes por segundo en vez de una vez por red).
     void writePacket(const uint8_t* data, uint32_t len, uint32_t ts_sec, uint32_t ts_usec);
-    void close();
-    bool isOpen() { return fileOpen; }
+    bool isOpen() { return listo; }
 
 private:
-    File pcapFile;
-    bool fileOpen = false;
+    char path[64] = "";
+    bool listo = false;
 
     struct PCAPHeader {
         uint32_t magicNumber = 0xa1b2c3d4;
