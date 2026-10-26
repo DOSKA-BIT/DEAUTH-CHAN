@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <math.h>
+#include <strings.h> // strcasecmp(), usado para ordenar CONOCIDAS por nombre
 #include <TFT_eSPI.h>
 #include <SD.h>
 #include "config.h"
@@ -46,6 +47,40 @@ EventLog eventos;
 RedInfo redes[MAX_REDES_ESCANEO];
 int numRedes = 0;
 bool escaneando = false;
+
+// Escaneo automatico de fondo: antes WiFi solo escaneaba cuando
+// tocabas el boton en ESCANEAR. Ahora, ademas, cada AUTO_SCAN_MS
+// (mientras no haya un escaneo manual ni un conteo de clientes en
+// curso, y la mascota no este dormida) se dispara un escaneo solo,
+// sin que haga falta estar parado en esa pantalla - asi CANALES se ve
+// "vivo" en vez de una foto fija, y "NUEVAS" en el encabezado puede
+// subir mientras estas mirando otra herramienta. escaneoEsAutomatico
+// le dice al bloque que procesa el resultado (ver loop()) si este
+// escaneo puntual vino de este timer o de que tocaste el boton, para
+// no guardar en Wardriving un punto de ubicacion que vos no pediste.
+const unsigned long AUTO_SCAN_MS = 45000;
+unsigned long ultimoAutoScan = 0;
+bool escaneoEsAutomatico = false;
+
+// Cuantas veces aparecio cada canal (1-13) sumando TODOS los escaneos
+// de la sesion (manuales + automaticos), no solo el ultimo - para
+// poder mostrar en CANALES cual es el canal mas saturado "en
+// general", no nada mas en la foto de este momento. Vive en RAM nomas
+// (como los contadores de anomalias de WiFiScanner): se resetea en
+// cada reinicio, y eso esta bien, no es un dato que haga falta
+// recordar de una sesion a la otra.
+int conteoAcumuladoCanales[13] = {0};
+int escaneosAcumulados = 0;
+
+// Orden de la lista de CONOCIDAS: 0=senial, 1=veces vista, 2=nombre.
+// Se cambia tocando el renglon de arriba de esa pantalla (ver
+// dibujarPantallaConocidas() y manejarToque(), caso SCREEN_CONOCIDAS).
+// NO hay un orden por "ultima vez vista": ese dato se guarda con
+// millis() de CADA sesion, que arranca de cero en cada reinicio, asi
+// que comparar el "ultimaVez" de una red guardada hace rato contra el
+// de una vista recien en ESTA sesion no diria nada real.
+int ordenConocidas = 0;
+const int ALTO_BOTON_ORDEN = 18;
 
 // Filtro de que se guarda en wardriving.csv: 0 = todas las redes
 // (comportamiento de siempre), 1 = solo las abiertas, 2 = solo las
@@ -469,10 +504,33 @@ void dibujarPantallaHerramientasSub() {
     }
 }
 
+const char* nombreOrdenConocidas(int orden) {
+    switch (orden) {
+        case 1: return "VISTAS";
+        case 2: return "NOMBRE";
+        default: return "SENIAL";
+    }
+}
+
 void dibujarPantallaConocidas() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
     dibujarTituloSeccion("CONOCIDAS", COLOR_CAT_WHITE, ICONO_CONOCIDAS);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+
+    // Renglon de "Orden: X" tocable, mismo criterio que el boton de
+    // exportar de EVENTOS (ALTO_BOTON_EXPORTAR): un bloque fijo
+    // arriba de la lista, con su propio alto reservado, para que el
+    // toque en manejarToque() (caso SCREEN_CONOCIDAS) siempre
+    // coincida con lo que se ve dibujado aca.
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(8, top + 4);
+    tft.print("Orden: ");
+    tft.setTextColor(COLOR_CAT_WHITE, COLOR_BG);
+    tft.print(nombreOrdenConocidas(ordenConocidas));
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.print("  (tocar para cambiar)");
+    tft.drawFastHLine(5, top + ALTO_BOTON_ORDEN, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
+    top += ALTO_BOTON_ORDEN;
 
     int total = aprendizaje.getTotalRedesConocidas();
     if (total == 0) {
@@ -483,18 +541,42 @@ void dibujarPantallaConocidas() {
         return;
     }
 
-    // Ordenadas por la mejor señal vista, de mas fuerte a mas debil.
-    // Podria ordenarse por "ultima vez vista" en cambio, pero eso usa
-    // millis() y esos valores quedan grabados en la SD de una sesion
-    // anterior - comparados contra el millis() de esta sesion (que
-    // arranca de cero en cada reset) no dicen nada real. La señal en
-    // cambio es un numero que sigue significando lo mismo siempre.
+    // NO hay orden por "ultima vez vista" - ver el comentario largo
+    // junto a la declaracion de ordenConocidas, mas arriba: ese dato
+    // usa millis() de la sesion en que se vio, y comparar eso entre
+    // sesiones distintas (reinicio de por medio) no dice nada real.
+    // "Veces vista" en cambio es un contador que se acumula en la SD
+    // sesion tras sesion sin ese problema.
     RedStats* todas = aprendizaje.getTodas();
     int indices[MAX_REDES_ESCANEO];
     for (int i = 0; i < total; i++) indices[i] = i;
     for (int i = 0; i < total - 1; i++) {
         for (int j = 0; j < total - 1 - i; j++) {
-            if (todas[indices[j]].mejorRSSI < todas[indices[j + 1]].mejorRSSI) {
+            RedStats& a = todas[indices[j]];
+            RedStats& b = todas[indices[j + 1]];
+            bool debeSwap;
+            switch (ordenConocidas) {
+                case 1:
+                    debeSwap = a.vecesVista < b.vecesVista;
+                    break;
+                case 2: {
+                    // Las ocultas (sin SSID) siempre van al final,
+                    // alfabetico no significa nada para un nombre
+                    // vacio.
+                    bool aOculta = strlen(a.ssid) == 0;
+                    bool bOculta = strlen(b.ssid) == 0;
+                    if (aOculta != bOculta) {
+                        debeSwap = aOculta;
+                    } else {
+                        debeSwap = strcasecmp(a.ssid, b.ssid) > 0;
+                    }
+                    break;
+                }
+                default:
+                    debeSwap = a.mejorRSSI < b.mejorRSSI;
+                    break;
+            }
+            if (debeSwap) {
                 int tmp = indices[j];
                 indices[j] = indices[j + 1];
                 indices[j + 1] = tmp;
@@ -502,7 +584,7 @@ void dibujarPantallaConocidas() {
         }
     }
 
-    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / 20;
+    int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - ALTO_BOTON_ORDEN - ALTO_PIE_AYUDA) / 20;
     int yOffset = top + 6;
     int mostradas = (total < maxVisibles) ? total : maxVisibles;
 
@@ -528,10 +610,10 @@ void dibujarPantallaConocidas() {
 
     if (total > mostradas) {
         char masTexto[32];
-        snprintf(masTexto, sizeof(masTexto), "+ %d mas, por senial", total - mostradas);
+        snprintf(masTexto, sizeof(masTexto), "+ %d mas, por %s", total - mostradas, nombreOrdenConocidas(ordenConocidas));
         dibujarPieAyuda(masTexto);
     } else {
-        dibujarPieAyuda("Ordenadas por senial, fuerte a debil");
+        dibujarPieAyuda("Toca 'Orden' arriba para cambiar el criterio");
     }
 }
 
@@ -893,7 +975,26 @@ void dibujarPantallaCanales() {
         y += altoFila;
     }
 
-    dibujarPieAyuda("Barra mas corta = canal menos saturado");
+    // Estas barras son la foto del ULTIMO escaneo (manual o
+    // automatico, ver AUTO_SCAN_MS en el bloque de loop() - por eso
+    // esta pantalla ahora se actualiza sola cada 45s sin que haga
+    // falta ir a ESCANEAR). El pie de abajo en cambio es el
+    // ACUMULADO de todos los escaneos de la sesion, para contestar
+    // "que canal esta mas saturado en general" y no solo en este
+    // instante puntual.
+    if (escaneosAcumulados > 1) {
+        int chMasUsado = 1;
+        for (int ch = 2; ch <= 13; ch++) {
+            if (conteoAcumuladoCanales[ch - 1] > conteoAcumuladoCanales[chMasUsado - 1]) {
+                chMasUsado = ch;
+            }
+        }
+        char pie[40];
+        snprintf(pie, sizeof(pie), "Historico (%d escaneos): CH%d el mas usado", escaneosAcumulados, chMasUsado);
+        dibujarPieAyuda(pie);
+    } else {
+        dibujarPieAyuda("Barra mas corta = canal menos saturado");
+    }
 }
 
 // Compara las redes del ULTIMO escaneo entre si (no contra el
@@ -1504,6 +1605,19 @@ void manejarToque(int x, int y) {
                 contenidoSucio = true; // para mostrar el resultado ya mismo
             }
             break;
+        case SCREEN_CONOCIDAS: {
+            // Mismos numeros que dibujarPantallaConocidas() para su
+            // renglon fijo de "Orden: X" - ver ALTO_BOTON_ORDEN mas
+            // arriba. Tocar en cualquier lado de esa franja pasa al
+            // siguiente criterio (ciclico: senial -> vistas -> nombre
+            // -> de nuevo senial).
+            int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+            if (y >= top && y <= top + ALTO_BOTON_ORDEN) {
+                ordenConocidas = (ordenConocidas + 1) % 3;
+                contenidoSucio = true;
+            }
+            break;
+        }
         case SCREEN_EVENTOS: {
             // Mismos numeros que dibujarPantallaEventos() para su
             // boton fijo de "exportar resumen" - ver el comentario de
@@ -1633,22 +1747,53 @@ void loop() {
         #endif
     }
 
-    if (pantallaActual == SCREEN_SCAN && escaneando && scanner.isScanDone()) {
+    // ANTES esto pedia ademas "pantallaActual == SCREEN_SCAN" - bug
+    // real que encontre repasando el codigo: si tocabas "Herramientas"
+    // (o cualquier otra pantalla) MIENTRAS un escaneo estaba en curso,
+    // esta linea nunca se ejecutaba (porque ya no estabas en
+    // SCREEN_SCAN), asi que "escaneando" se quedaba en true PARA
+    // SIEMPRE - y el toque de "Anda a ESCANEAR y volve aca" quedaba
+    // mudo de ahi en mas, porque manejarToque() no dispara un escaneo
+    // nuevo mientras escaneando ya esta en true. Sacar la condicion de
+    // pantalla de aca tambien es lo que hace falta para que el
+    // escaneo automatico de mas abajo funcione estando en CUALQUIER
+    // pantalla, no solo en ESCANEAR.
+    if (escaneando && scanner.isScanDone()) {
         scanner.getScanResults(redes, MAX_REDES_ESCANEO, numRedes);
         mascota.setRedesEncontradas(numRedes);
         escaneando = false;
-        mascota.setEstado(ESTADO_IDLE);
+        // El escaneo automatico no muestra el estado "ESCANEANDO" (el
+        // usuario no lo pidio, no hace falta avisarle que esta pasando
+        // salvo que encuentre algo nuevo - eso ya lo hace
+        // incrementarRedesNuevas() mas abajo, poniendo CURIOSA).
+        if (!escaneoEsAutomatico) {
+            mascota.setEstado(ESTADO_IDLE);
+        }
 
         GPSData pos = gps.getData();
         int nuevasEnEsteScan = 0;
         for (int i = 0; i < numRedes; i++) {
-            wardriver.saveNetwork(redes[i], pos);
+            // Wardriving (guardar ubicacion+red en la SD) sigue siendo
+            // una accion deliberada del usuario - un escaneo de fondo
+            // cada 45s no deberia llenarle la SD de puntos que nunca
+            // pidio. Aprendizaje (Conocidas/redes nuevas) SI se
+            // actualiza siempre: ese historial tiene que reflejar todo
+            // lo que el radio escucho, sea de un escaneo manual o
+            // automatico.
+            if (!escaneoEsAutomatico) {
+                wardriver.saveNetwork(redes[i], pos);
+            }
             bool esNueva = aprendizaje.registrarAvistamiento(redes[i]);
             if (esNueva) {
                 mascota.incrementarRedesNuevas();
                 nuevasEnEsteScan++;
             }
+
+            int ch = redes[i].canal;
+            if (ch >= 1 && ch <= 13) conteoAcumuladoCanales[ch - 1]++;
         }
+        escaneosAcumulados++;
+
         // Una sola escritura a la SD aca afuera del for: antes
         // registrarAvistamiento() guardaba en SD por cada red
         // individual, asi que un escaneo con 15 redes eran 15
@@ -1661,9 +1806,12 @@ void loop() {
         // Un solo registro de evento por escaneo (no uno por red, por
         // la misma razon de arriba): deja el resumen que de verdad
         // importa - cuantas redes vio y cuantas eran nuevas - sin
-        // volver a escribir la SD veinte veces seguidas.
-        char resumenEvento[40];
-        snprintf(resumenEvento, sizeof(resumenEvento), "Escaneo: %d redes (%d nuevas)", numRedes, nuevasEnEsteScan);
+        // volver a escribir la SD veinte veces seguidas. Se marca
+        // "Auto" para distinguirlo de un escaneo que de verdad tocaste
+        // vos, al mirar el historial despues.
+        char resumenEvento[48];
+        snprintf(resumenEvento, sizeof(resumenEvento), "%s: %d redes (%d nuevas)",
+                 escaneoEsAutomatico ? "Auto-escaneo" : "Escaneo", numRedes, nuevasEnEsteScan);
         eventos.registrar(resumenEvento, &pos);
 
         Serial.printf("Escaneo completado: %d redes\n", numRedes);
@@ -1677,7 +1825,23 @@ void loop() {
             touchDriver.reclaimBus();
         #endif
 
-        contenidoSucio = true; // hay resultados nuevos para mostrar en la lista
+        escaneoEsAutomatico = false;
+        contenidoSucio = true; // hay resultados nuevos para mostrar (en SCAN, CANALES o DUPLICADO)
+    }
+
+    // Dispara el escaneo de fondo (ver comentario largo arriba de
+    // AUTO_SCAN_MS): solo si no hay ya un escaneo o un conteo de
+    // clientes usando el radio, no estamos parados en ESCANEAR (ahi
+    // el usuario tiene el control manual) y la mascota no esta
+    // dormida (no tiene sentido gastar radio con la pantalla apagada
+    // por inactividad).
+    if (!escaneando && !scanner.conteoEnProgreso() && pantallaActual != SCREEN_SCAN &&
+        mascota.getEstado() != ESTADO_SLEEP &&
+        millis() - ultimoAutoScan >= AUTO_SCAN_MS) {
+        ultimoAutoScan = millis();
+        scanner.startScan();
+        escaneando = true;
+        escaneoEsAutomatico = true;
     }
 
     // Conteo de clientes no bloqueante: mientras dura, se repinta la
