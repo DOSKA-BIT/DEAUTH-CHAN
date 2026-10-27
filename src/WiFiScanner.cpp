@@ -25,7 +25,30 @@ bool WiFiScanner::isScanDone() {
 
 void WiFiScanner::getScanResults(RedInfo* resultados, int maxRedes, int& encontradas) {
     int n = WiFi.scanComplete();
-    if (n <= 0) {
+
+    // BUG REAL que encontre repasando este archivo (no reportado, lo
+    // encontre yo mirando el codigo): antes, si un escaneo terminaba
+    // con CERO redes encontradas (perfectamente posible - un lugar
+    // apantallado, un mal momento, lo que sea), esta funcion cortaba
+    // aca con un "return" temprano SIN llegar nunca a la linea de mas
+    // abajo que vuelve a prender el modo promiscuo. Resultado: el
+    // radio se quedaba en modo escaneo activo PARA SIEMPRE, y el
+    // Monitor de deauth/disassoc (ademas de PCAP) dejaba de detectar
+    // absolutamente nada el resto de la sesion, sin ningun error
+    // visible en pantalla - exactamente el mismo tipo de bug "silencioso"
+    // que ya encontramos antes con los File de la SD. Con el escaneo
+    // automatico de fondo corriendo cada 45s (ver AUTO_SCAN_MS en
+    // main.cpp), bastaba con que UN SOLO escaneo de tantos diera cero
+    // redes para que el Monitor dejara de funcionar sin que nadie se
+    // diera cuenta. Ahora "cero redes" sigue el mismo camino que
+    // "redes encontradas" (el for de abajo simplemente no itera
+    // ninguna vez) y SIEMPRE llega a reactivar el modo promiscuo.
+    //
+    // n < 0 en cambio es otra cosa: significa que el escaneo todavia
+    // no termino (no deberia pasar nunca aca, porque isScanDone() ya
+    // filtro ese caso antes de llamar a esto, pero por las dudas no
+    // tocamos el radio si de verdad no termino todavia).
+    if (n < 0) {
         encontradas = 0;
         return;
     }
