@@ -134,7 +134,8 @@ enum MenuScreen {
     SCREEN_MONITOR,
     SCREEN_CANALES,
     SCREEN_DUPLICADOS,
-    SCREEN_RADAR
+    SCREEN_RADAR,
+    SCREEN_GAME
 };
 MenuScreen pantallaActual = SCREEN_MAIN;
 
@@ -235,6 +236,10 @@ Herramienta herramientas[] = {
     {"EVENTOS",   "Historial de esta sesion",         CAT_WIFI,       SCREEN_EVENTOS,   COLOR_CAT_BLUE,   ICONO_EVENTOS,   0, 0},
     {"CANALES",   "Uso del espectro, canal por canal", CAT_WIFI,       SCREEN_CANALES,   COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
     {"DUPLICADO", "SSID repetido en el ultimo escaneo",CAT_WIFI,       SCREEN_DUPLICADOS,COLOR_CAT_RED,    ICONO_DUPLICADO, 0, 0},
+    // Vacio a proposito (pedido explicito del usuario): sin logica
+    // adentro, nada mas el boton, el icono y una pantalla en blanco -
+    // ver dibujarPantallaGame() mas abajo.
+    {"GAME",      "Proximamente",                     CAT_WIFI,       SCREEN_GAME,      COLOR_CAT_WHITE,  ICONO_ESPADA,    0, 0},
     {"WARDRIVE",  "Guardar ubicacion + redes en SD",  CAT_WARDRIVING, SCREEN_WARDRIVE,  COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0},
     {"RADAR",     "BLE cerca + red Find My de Apple", CAT_RADAR,      SCREEN_RADAR,     COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0},
     {"CONFIG",    "Datos de la placa y la SD",        CAT_AJUSTES,    SCREEN_CONFIG,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
@@ -1074,6 +1079,20 @@ void dibujarPantallaDuplicados() {
     } else {
         dibujarPieAyuda("Puede ser mesh real - no es 100% certeza");
     }
+}
+
+// GAME: vacia a proposito, pedido explicito del usuario (ver el
+// comentario junto a la fila "GAME" en herramientas[]) - nada de
+// logica aca adentro, solo el cartel. Se completa en otra sesion.
+void dibujarPantallaGame() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("GAME", COLOR_CAT_WHITE, ICONO_ESPADA);
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(10, top + 10);
+    tft.print("Proximamente...");
+    dibujarPieAyuda("Todavia no hay nada aca");
 }
 
 // RADAR: lista en vivo de dispositivos BLE escuchados (ver el
@@ -1970,6 +1989,9 @@ void loop() {
                     break;
                 case SCREEN_RADAR:
                     dibujarPantallaRadar();
+                    break;
+                case SCREEN_GAME:
+                    dibujarPantallaGame();
                     break;
                 default:
                     break;
