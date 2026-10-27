@@ -239,7 +239,7 @@ Herramienta herramientas[] = {
     // Vacio a proposito (pedido explicito del usuario): sin logica
     // adentro, nada mas el boton, el icono y una pantalla en blanco -
     // ver dibujarPantallaGame() mas abajo.
-    {"GAME",      "Proximamente",                     CAT_WIFI,       SCREEN_GAME,      COLOR_CAT_WHITE,  ICONO_ESPADA,    0, 0},
+    {"ataque",      "Proximamente",                     CAT_WIFI,       SCREEN_GAME,      COLOR_CAT_WHITE,  ICONO_ESPADA,    0, 0},
     {"WARDRIVE",  "Guardar ubicacion + redes en SD",  CAT_WARDRIVING, SCREEN_WARDRIVE,  COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0},
     {"RADAR",     "BLE cerca + red Find My de Apple", CAT_RADAR,      SCREEN_RADAR,     COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0},
     {"CONFIG",    "Datos de la placa y la SD",        CAT_AJUSTES,    SCREEN_CONFIG,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
