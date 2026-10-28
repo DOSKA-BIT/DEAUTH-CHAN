@@ -176,7 +176,7 @@ void dibujarPantallaConocidas() {
     tft.print(nombreOrdenConocidas(ordenConocidas));
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.print("  (tocar para cambiar)");
-    tft.drawFastHLine(5, top + ALTO_BOTON_ORDEN, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
+    dibujarLineaPunteada(5, top + ALTO_BOTON_ORDEN, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
     top += ALTO_BOTON_ORDEN;
 
     int total = aprendizaje.getTotalRedesConocidas();
@@ -286,7 +286,7 @@ void dibujarPantallaEventos() {
         tft.print(" lineas");
     }
 
-    tft.drawFastHLine(10, top + ALTO_BOTON_EXPORTAR, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
+    dibujarLineaPunteada(10, top + ALTO_BOTON_EXPORTAR, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
     int top2 = top + ALTO_BOTON_EXPORTAR + 4;
 
     int total = 0;
@@ -352,7 +352,7 @@ void dibujarPantallaMonitor() {
     tft.setTextColor(totalDisassoc > 0 ? COLOR_WARN : COLOR_TEXT, COLOR_BG);
     tft.print(totalDisassoc);
 
-    tft.drawFastHLine(5, top + 18, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
+    dibujarLineaPunteada(5, top + 18, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
 
     // Captura cruda a .pcap. Tocar esta franja prende o apaga la
     // grabacion - manejarToqueWifi(), caso SCREEN_MONITOR, usa el
@@ -371,7 +371,7 @@ void dibujarPantallaMonitor() {
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.print(scanner.getPCAPCapturados());
 
-    tft.drawFastHLine(5, top + ALTO_BLOQUE_MONITOR, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
+    dibujarLineaPunteada(5, top + ALTO_BLOQUE_MONITOR, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
 
     int total = 0;
     AnomaliaWiFi* lista = scanner.getAnomalias(total);
@@ -459,22 +459,23 @@ void dibujarPantallaCanales() {
     if (altoFila < 10) altoFila = 10; // las 13 filas entran apretadas igual en pantallas chicas
     int xBarra = 38;
     int anchoMaxBarra = TFT_PANEL_WIDTH - xBarra - 35; // deja lugar al numero de la derecha
+    // Barra tipo medidor segmentado (estilo huntMeter de Fennec) en
+    // vez de una barra de progreso lisa - mismo proposito, se nota
+    // igual de bien cual canal esta mas saturado.
+    const int SEGMENTOS_BARRA = 16;
 
     int y = top + 2;
     for (int ch = 1; ch <= 13; ch++) {
         int cant = conteo[ch - 1];
-        int anchoBarra = (cant * anchoMaxBarra) / maxConteo;
-        if (cant > 0 && anchoBarra < 2) anchoBarra = 2; // que se note aunque sea una sola red
+        int llenos = (cant * SEGMENTOS_BARRA) / maxConteo;
+        if (cant > 0 && llenos < 1) llenos = 1; // que se note aunque sea una sola red
 
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(2, y);
         tft.print("CH");
         tft.print(ch);
 
-        tft.fillRect(xBarra, y, anchoMaxBarra, 8, COLOR_PANEL);
-        if (anchoBarra > 0) {
-            tft.fillRect(xBarra, y, anchoBarra, 8, COLOR_CAT_YELLOW);
-        }
+        dibujarBarraSegmentada(xBarra, y, anchoMaxBarra, 8, SEGMENTOS_BARRA, llenos, COLOR_ACCENT, COLOR_PANEL);
 
         tft.setTextColor(COLOR_TEXT, COLOR_BG);
         tft.setCursor(xBarra + anchoMaxBarra + 4, y);

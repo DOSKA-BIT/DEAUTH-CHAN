@@ -97,7 +97,7 @@ void dibujarPantallaConfig() {
     // funciones que ya trae el core de Arduino-ESP32. Los numeros en
     // si se pintan aparte (actualizarDiagnosticoHardware) porque ese
     // bloque se repinta solo, una vez por segundo.
-    tft.drawFastHLine(10, CONTENT_TOP + 132, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
+    dibujarLineaPunteada(10, CONTENT_TOP + 132, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
     actualizarDiagnosticoHardware();
 
     // Esto se dibuja una sola vez, al entrar a la pantalla - no hace

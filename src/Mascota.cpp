@@ -121,55 +121,47 @@ uint16_t Mascota::colorEstado() const {
 }
 
 void Mascota::dibujarEncabezado() {
-    // Fase 2 del rediseño "herramienta retro": la franja de arriba
-    // ahora es una barra azul intensa bien visible (COLOR_HEADER), en
-    // vez del mismo negro/navy del fondo - calcado de la referencia
-    // que mando el usuario (encabezado "azul intenso" diferenciado
-    // del resto de la pantalla). Como este encabezado es compartido
-    // por TODAS las pantallas (lo llama cada una via
-    // dibujarEncabezado()), este solo cambio ya se nota en el
-    // firmware entero, no solo en la mascota.
-    display->fillRect(0, 0, TFT_PANEL_WIDTH, 32, COLOR_HEADER);
-    display->drawFastHLine(0, 32, TFT_PANEL_WIDTH, COLOR_ACCENT_DIM);
+    // Fase 3 del rediseño: estetica Fennec. Esa interfaz no tiene una
+    // barra de otro color arriba - el encabezado es el mismo fondo,
+    // con texto de letras separadas y una linea punteada marcando
+    // donde termina (calcado de drawHeader() en Fennec/DisplayUI.cpp).
+    // Como este encabezado es compartido por TODAS las pantallas (lo
+    // llama cada una via dibujarEncabezado()), este cambio ya se nota
+    // en el firmware entero, no solo en la mascota.
+    display->fillRect(0, 0, TFT_PANEL_WIDTH, 32, COLOR_BG);
+    dibujarLineaPunteada(0, 32, TFT_PANEL_WIDTH, COLOR_ACCENT_DIM);
 
-    display->setTextFont(1);
-    display->setTextSize(1);
+    dibujarTextoEspaciado(6, 5, "REDES", COLOR_TEXT_DIM, COLOR_BG, 1);
+    char bufRedes[6];
+    snprintf(bufRedes, sizeof(bufRedes), "%d", redesEncontradas);
+    dibujarTextoEspaciado(6, 16, bufRedes, COLOR_TEXT, COLOR_BG, 1);
 
-    display->setTextColor(COLOR_TEXT_DIM, COLOR_HEADER);
-    display->setCursor(6, 5);
-    display->print("REDES");
-    display->setTextColor(COLOR_TEXT, COLOR_HEADER);
-    display->setCursor(6, 16);
-    display->print(redesEncontradas);
+    dibujarTextoEspaciado(60, 5, "NUEVAS", COLOR_TEXT_DIM, COLOR_BG, 1);
+    char bufNuevas[6];
+    snprintf(bufNuevas, sizeof(bufNuevas), "%d", redesNuevas);
+    dibujarTextoEspaciado(60, 16, bufNuevas, COLOR_WARN, COLOR_BG, 1);
 
-    display->setTextColor(COLOR_TEXT_DIM, COLOR_HEADER);
-    display->setCursor(60, 5);
-    display->print("NUEVAS");
-    display->setTextColor(COLOR_WARN, COLOR_HEADER);
-    display->setCursor(60, 16);
-    display->print(redesNuevas);
-
-    // Etiqueta de estado a la derecha: bloque cuadrado relleno con el
-    // color de colorEstado(), texto oscuro encima para que resalte
-    // sobre la barra azul igual que resaltaba sobre el negro antes.
+    // Etiqueta de estado a la derecha: en vez de la "pildora" rellena
+    // de antes, una caja marcada solo en las esquinas (igual que las
+    // filas del menu) con el texto de letras separadas en el color de
+    // colorEstado() - nada de bloque de color solido.
     uint16_t color = colorEstado();
     const char* nombre = nombreEstado();
-    int anchoPildora = 6 + strlen(nombre) * 6;
-    int xPildora = TFT_PANEL_WIDTH - anchoPildora - 8;
-    display->fillRect(xPildora, 8, anchoPildora, 16, color);
-    display->setTextColor(COLOR_BG, color);
-    display->setCursor(xPildora + 3, 12);
-    display->print(nombre);
+    int anchoTexto = anchoTextoEspaciado(nombre, 1);
+    int anchoCaja = anchoTexto + 10;
+    int xCaja = TFT_PANEL_WIDTH - anchoCaja - 6;
+    dibujarEsquinas(xCaja, 7, anchoCaja, 18, color, 4);
+    dibujarTextoEspaciado(xCaja + 5, 12, nombre, color, COLOR_BG, 1);
 
-    // Barra de "actividad": cuanto mas redes nuevas encontro en lo que
-    // va de la sesion, mas llena.
+    // Barra de "actividad", ahora segmentada (estilo medidor de
+    // Fennec) en vez de una barra de progreso lisa: cuanto mas redes
+    // nuevas encontro en lo que va de la sesion, mas segmentos
+    // llenos.
     int anchoBarra = TFT_PANEL_WIDTH - 12;
-    display->drawRect(6, 26, anchoBarra, 4, COLOR_TEXT_DIM);
-    int lleno = redesNuevas * 4;
-    if (lleno > anchoBarra - 2) lleno = anchoBarra - 2;
-    if (lleno > 0) {
-        display->fillRect(7, 27, lleno, 2, COLOR_ACCENT);
-    }
+    int segmentos = 24;
+    int llenos = redesNuevas;
+    if (llenos > segmentos) llenos = segmentos;
+    dibujarBarraSegmentada(6, 26, anchoBarra, 4, segmentos, llenos, COLOR_ACCENT, COLOR_PANEL);
 }
 
 void Mascota::dibujarCara() {

@@ -169,6 +169,20 @@ void manejarToqueCategorias(int y);
 void manejarToqueHerramientasSub(int y);
 bool esPantallaHoja(MenuScreen pantalla);
 
+// ---- Helpers de dibujo estilo Fennec (Menu.cpp) - vocabulario visual
+// compartido por TODAS las pantallas desde la fase 3 del rediseño
+// (paleta monocromatica ambar + trazos calcados de cifertech/fennec:
+// texto con letras separadas, lineas punteadas en vez de solidas,
+// marcos de solo esquinas en vez de rectangulos rellenos/con borde
+// completo, y barras tipo "medidor" segmentadas en vez de una barra
+// de progreso lisa). Ninguno de estos cambia layout, hitboxes de
+// toque ni logica - solo COMO se pinta cada cosa.
+int anchoTextoEspaciado(const char* texto, int espacio = 2);
+void dibujarTextoEspaciado(int x, int y, const char* texto, uint16_t color, uint16_t fondo, int espacio = 2);
+void dibujarLineaPunteada(int x, int y, int w, uint16_t color);
+void dibujarEsquinas(int x, int y, int w, int h, uint16_t color, int largo = 4);
+void dibujarBarraSegmentada(int x, int y, int w, int h, int segmentos, int llenos, uint16_t colorLleno, uint16_t colorVacio);
+
 // ---- Pantallas de la categoria WIFI (ScreenWifi.cpp) ----
 void dibujarListaRedes();
 void dibujarPantallaStats();
