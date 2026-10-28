@@ -1,6 +1,11 @@
 #include "Mascota.h"
 #include "Theme.h"
 #include "MascotaCaras.h"
+// Hace falta para los helpers de dibujo compartidos (dibujarLineaPunteada,
+// dibujarTextoEspaciado, dibujarEsquinas, dibujarBarraSegmentada - todos
+// definidos en Menu.cpp, declarados aca) que usa dibujarEncabezado() desde
+// el restyle Fennec. Antes este archivo no necesitaba nada de Globals.h.
+#include "Globals.h"
 
 // Elige cual de los 2 frames le toca a cada estado. Vive afuera de la
 // clase (no hace falta declararla en el header) igual que
