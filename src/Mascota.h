@@ -76,19 +76,20 @@ private:
     int redesNuevasEncabezadoAnterior;
     int redesEncontradasEncabezadoAnterior;
 
-    // El sprite (ver MascotaSprite.h) se dibuja centrado segun el
-    // ancho real de la pantalla (240 en la 2.8/2.4", mas ancho en las
+    // La cara (ver MascotaCaras.h) se dibuja centrada segun el ancho
+    // real de la pantalla (240 en la 2.8/2.4", mas ancho en las
     // 3.5"), asi que se calcula una vez en init() en vez de tenerlo
-    // hardcodeado.
+    // hardcodeado. Los nombres quedan como "sprite" por costumbre del
+    // resto del archivo, aunque ahora es un bitmap monocromo chico y
+    // no el arte a color de antes.
     int spriteX;
     int spriteY;
 
     // Pequeno balanceo vertical para que no quede tan tieso parado
-    // ahi, calculado a partir del frame de animacion. Se sigue usando
-    // con el arte nuevo igual que con los dibujos a mano de antes.
+    // ahi, calculado a partir del frame de animacion.
     int bobbing() const;
 
-    void dibujarSprite();
+    void dibujarCara();
     const char* nombreEstado() const;
     uint16_t colorEstado() const;
 };

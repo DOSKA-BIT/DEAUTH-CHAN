@@ -88,6 +88,15 @@ int layoutHerramientasDeCategoria(int categoria, int* indicesOut) {
     return cantidad;
 }
 
+// Dice si "pantalla" es una herramienta propiamente dicha (ESCANEAR,
+// STATS, WARDRIVE, RADAR, CONFIG, etc - cualquier pantalla final, no
+// un nivel del menu). Se usa tanto para decidir el texto del boton
+// derecho de abajo (dibujarMenuBotones(), aca mismo) como para que
+// ese boton funcione como "Atras" en manejarToque() (main.cpp).
+bool esPantallaHoja(MenuScreen pantalla) {
+    return pantalla != SCREEN_MAIN && pantalla != SCREEN_TOOLS && pantalla != SCREEN_TOOLS_SUB;
+}
+
 void dibujarMenuBotones() {
     // Linea fina arriba de la barra, para separarla del contenido en
     // vez de que los botones queden flotando sin mas.
@@ -95,8 +104,8 @@ void dibujarMenuBotones() {
 
     for (int i = 0; i < 2; i++) {
         // El boton de Mascota se marca activo solo en la pantalla
-        // principal; el de Herramientas se marca activo en cualquier
-        // otra pantalla.
+        // principal; el de Herramientas/Atras se marca activo en
+        // cualquier otra pantalla.
         bool activo = (i == 0) ? (pantallaActual == SCREEN_MAIN) : (pantallaActual != SCREEN_MAIN);
         uint16_t colorFondo = activo ? COLOR_ACCENT : COLOR_PANEL;
         uint16_t colorTexto = activo ? COLOR_BG : COLOR_TEXT_DIM;
@@ -104,13 +113,25 @@ void dibujarMenuBotones() {
         if (!activo) {
             tft.drawRect(menuBotones[i].x, menuBotones[i].y, menuBotones[i].w, menuBotones[i].h, COLOR_ACCENT_DIM);
         }
+
+        // El boton derecho cambia de texto segun donde estamos
+        // parados: "Atras" dentro de una herramienta o de la lista de
+        // herramientas de una categoria (ahi vuelve un nivel, ver
+        // manejarToque() en main.cpp), "Herramientas" en cualquier
+        // otro lado (Mascota o la lista de categorias) - mismo
+        // comportamiento que tenia antes en esos dos casos.
+        const char* etiqueta = menuBotones[i].label;
+        if (i == 1 && (pantallaActual == SCREEN_TOOLS_SUB || esPantallaHoja(pantallaActual))) {
+            etiqueta = "Atras";
+        }
+
         tft.setTextColor(colorTexto, colorFondo);
         tft.setTextFont(1);
         tft.setTextSize(1);
-        int anchoTexto = strlen(menuBotones[i].label) * 6;
+        int anchoTexto = strlen(etiqueta) * 6;
         int xCentrado = menuBotones[i].x + (menuBotones[i].w - anchoTexto) / 2;
         tft.setCursor(xCentrado, menuBotones[i].y + 13);
-        tft.print(menuBotones[i].label);
+        tft.print(etiqueta);
     }
 }
 

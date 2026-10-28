@@ -131,9 +131,11 @@ MenuScreen destinoPendiente = SCREEN_MAIN;
 int categoriaSeleccionada = 0;
 
 // Solo dos botones fijos abajo: uno para volver a la mascota y otro
-// para la lista de herramientas. Agregar una herramienta nueva el dia
-// de manana es sumar una fila en la lista (herramientas[] mas abajo),
-// no pelear por lugar en la barra de abajo.
+// que es "Herramientas" o "Atras" segun donde estemos parados (ver
+// esPantallaHoja() en Menu.cpp y el comentario largo en
+// manejarToque(), mas abajo). Agregar una herramienta nueva el dia de
+// manana es sumar una fila en la lista (herramientas[] mas abajo), no
+// pelear por lugar en la barra de abajo.
 Boton menuBotones[2];
 
 // Las 4 categorias del submenu de Herramientas. Son pocas y fijas,
@@ -189,10 +191,27 @@ void manejarToque(int x, int y) {
     for (int i = 0; i < 2; i++) {
         if (x >= menuBotones[i].x && x <= menuBotones[i].x + menuBotones[i].w &&
             y >= menuBotones[i].y && y <= menuBotones[i].y + menuBotones[i].h) {
-            // Boton 0 = volver a la mascota, boton 1 = ir a la lista
-            // de herramientas (no a la ultima herramienta que estaba
-            // abierta - siempre arranca de la lista, asi es predecible).
-            pantallaActual = (i == 0) ? SCREEN_MAIN : SCREEN_TOOLS;
+            if (i == 0) {
+                // Boton 0 = volver siempre a la mascota.
+                pantallaActual = SCREEN_MAIN;
+            } else if (esPantallaHoja(pantallaActual)) {
+                // Boton 1 estando DENTRO de una herramienta (ESCANEAR,
+                // STATS, etc): ahora funciona como "Atras" y vuelve un
+                // solo nivel, a la lista de herramientas de ESA
+                // categoria (categoriaSeleccionada no se toca, sigue
+                // siendo la misma) - antes saltaba directo a la lista
+                // de categorias y habia que buscar de nuevo donde
+                // estabas. El texto del boton cambia a "Atras" en este
+                // caso - ver dibujarMenuBotones() en Menu.cpp.
+                pantallaActual = SCREEN_TOOLS_SUB;
+            } else {
+                // Desde Mascota, desde la lista de categorias o desde
+                // la lista de herramientas de una categoria: un nivel
+                // mas arriba siempre es la lista de categorias (no la
+                // ultima herramienta que estaba abierta - asi es
+                // predecible).
+                pantallaActual = SCREEN_TOOLS;
+            }
             return;
         }
     }

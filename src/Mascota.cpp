@@ -1,18 +1,23 @@
 #include "Mascota.h"
 #include "Theme.h"
-#include "MascotaSprite.h"
+#include "MascotaCaras.h"
 
-// Elige cual de los 2 frames de arte real le toca a cada estado. Vive
-// afuera de la clase (no hace falta declararla en el header) igual que
+// Elige cual de los 2 frames le toca a cada estado. Vive afuera de la
+// clase (no hace falta declararla en el header) igual que
 // escribirTextoEscapado() en Wardriving.cpp.
-static const uint16_t* spriteParaEstado(EstadoMascota estado, bool frame2) {
+//
+// Antes esto devolvia un puntero a un sprite RGB565 a color
+// (MascotaSprite.h); ahora devuelve un bitmap monocromo chico de
+// MascotaCaras.h (pixel art estilo kaomoji, ver el comentario largo
+// en tools/generar_caras.py de por que no es texto unicode real).
+static const uint8_t* caraParaEstado(EstadoMascota estado, bool frame2) {
     switch (estado) {
-        case ESTADO_IDLE:     return frame2 ? mascotaIdle2     : mascotaIdle1;
-        case ESTADO_HAPPY:    return frame2 ? mascotaHappy2    : mascotaHappy1;
-        case ESTADO_SCANNING: return frame2 ? mascotaScanning2 : mascotaScanning1;
-        case ESTADO_CURIOSA:  return frame2 ? mascotaCuriosa2  : mascotaCuriosa1;
-        case ESTADO_SLEEP:    return frame2 ? mascotaSleep2    : mascotaSleep1;
-        default:              return mascotaIdle1;
+        case ESTADO_IDLE:     return frame2 ? CARA_IDLE_2     : CARA_IDLE_1;
+        case ESTADO_HAPPY:    return frame2 ? CARA_HAPPY_2    : CARA_HAPPY_1;
+        case ESTADO_SCANNING: return frame2 ? CARA_SCANNING_2 : CARA_SCANNING_1;
+        case ESTADO_CURIOSA:  return frame2 ? CARA_CURIOSA_2  : CARA_CURIOSA_1;
+        case ESTADO_SLEEP:    return frame2 ? CARA_SLEEP_2    : CARA_SLEEP_1;
+        default:              return CARA_IDLE_1;
     }
 }
 
@@ -40,7 +45,7 @@ void Mascota::init(TFT_eSPI* tft) {
     // Centrado horizontal segun el ancho real de la placa que este
     // corriendo, para no dejar la cara pegada a un costado en las
     // pantallas de 320 o 480px de ancho.
-    spriteX = (TFT_PANEL_WIDTH / 2) - (MASCOTA_W / 2);
+    spriteX = (TFT_PANEL_WIDTH / 2) - (CARA_ANCHO / 2);
 }
 
 void Mascota::update() {
@@ -82,7 +87,7 @@ void Mascota::dibujar(bool limpiarTodo) {
     if (limpiarTodo) {
         // Solo hace falta al entrar a esta pantalla (para tapar lo que
         // haya quedado de la pantalla anterior). En los redibujados de
-        // animacion, dibujarEncabezado() y dibujarSprite() ya limpian
+        // animacion, dibujarEncabezado() y dibujarCara() ya limpian
         // cada uno su propia zona - repetir un borrado de toda la
         // franja ademas de eso solo suma un parpadeo mas grande sin
         // necesidad.
@@ -90,7 +95,7 @@ void Mascota::dibujar(bool limpiarTodo) {
         display->fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alto, COLOR_BG);
     }
     dibujarEncabezado();
-    dibujarSprite();
+    dibujarCara();
 }
 
 const char* Mascota::nombreEstado() const {
@@ -167,29 +172,29 @@ void Mascota::dibujarEncabezado() {
     }
 }
 
-void Mascota::dibujarSprite() {
+void Mascota::dibujarCara() {
     int x = spriteX;
     int y = spriteY;
     unsigned long transcurrido = millis() - estadoStartTime;
 
-    // Cada estado tiene 2 frames de arte real (ver assets/mascota_frames/
-    // y tools/convert_mascota_frames.py). Para HAPPY y CURIOSA, que duran
-    // poco y vuelven solos a IDLE (ver update()), el frame 2 entra a
-    // mitad de camino para que se alcancen a ver las dos poses antes de
-    // que el estado termine. IDLE, SCANNING y SLEEP no tienen limite de
-    // tiempo, asi que ahi alternamos solas cada ~4s via frameAnimacion.
+    // Cada estado tiene 2 frames (ver MascotaCaras.h / tools/generar_caras.py).
+    // Para HAPPY y CURIOSA, que duran poco y vuelven solas a IDLE (ver
+    // update()), el frame 2 entra a mitad de camino para que se alcancen
+    // a ver las dos poses antes de que el estado termine. IDLE, SCANNING
+    // y SLEEP no tienen limite de tiempo, asi que ahi alternamos solas
+    // cada ~4s via frameAnimacion.
     bool frame2;
     switch (estadoActual) {
         case ESTADO_HAPPY:
-            // sonrisa grande primero, ojitos cerrados de contenta despues
+            // sonrisa grande primero, ojitos entrecerrados de contenta despues
             frame2 = transcurrido > 1500;
             // ademas un pequeno salto en vez del vaiven lento, para que
             // se note mas que esta contenta
             y += ((frameAnimacion % 8) < 4) ? -4 : 0;
             break;
         case ESTADO_CURIOSA:
-            // primero pensando (dedo en la mejilla), despues la sorpresa
-            // de la red nueva
+            // primero la ceja levantada (duda), despues la sorpresa de
+            // la red nueva (ojos bien abiertos)
             frame2 = transcurrido > 1000;
             break;
         case ESTADO_IDLE:
@@ -202,32 +207,29 @@ void Mascota::dibujarSprite() {
             break;
     }
 
-    // El sprite tiene fondo transparente y se puede mover (bobbing,
-    // salto), asi que hay que limpiar una zona mas grande que el
-    // sprite mismo para no dejar restos del frame anterior.
-    display->fillRect(x - 10, spriteY - 40, MASCOTA_W + 100, MASCOTA_H + 50, COLOR_BG);
+    // La cara se puede mover (bobbing, salto) y ademas HAPPY/CURIOSA
+    // dibujan texto al costado, asi que hay que limpiar una zona mas
+    // grande que el bitmap mismo para no dejar restos del frame
+    // anterior ni del texto de un estado previo.
+    display->fillRect(x - 10, spriteY - 40, CARA_ANCHO + 110, CARA_ALTO + 60, COLOR_BG);
 
-    // El array RGB565 esta generado como un entero de 16 bits comun
-    // (el que arma el script de conversion), pero TFT_eSPI por defecto
-    // asume que pushImage() recibe los bytes ya invertidos para la
-    // transferencia SPI (_swapBytes = false de entrada). Sin este
-    // setSwapBytes(true) el chip manda los 2 bytes de cada pixel al
-    // reves y los colores salen todos mezclados/con ruido en pantalla,
-    // que es justo lo que se vio en la placa. Lo prendo solo para este
-    // pushImage puntual y lo dejo como estaba despues, para no afectar
-    // el resto de los dibujos de esta pantalla (texto, barras, etc).
-    display->setSwapBytes(true);
-    const uint16_t* sprite = spriteParaEstado(estadoActual, frame2);
-    display->pushImage(x, y, MASCOTA_W, MASCOTA_H, sprite, MASCOTA_TRANSPARENT);
-    display->setSwapBytes(false);
+    // Bitmap monocromo (1 bit por pixel, igual que los iconos de
+    // Iconos.h): un solo color de "tinta" por llamada, nada de
+    // pushImage ni setSwapBytes (eso era especifico del sprite RGB565
+    // de antes). El color de la cara es el mismo que ya usa la
+    // pildora de estado del encabezado, para que las dos cosas
+    // combinen.
+    const uint8_t* cara = caraParaEstado(estadoActual, frame2);
+    display->drawBitmap(x, y, cara, CARA_ANCHO, CARA_ALTO, colorEstado(), COLOR_BG);
 
     // HAPPY y CURIOSA llevan ademas un indicador de texto al costado -
-    // SCANNING y SLEEP ya no lo necesitan porque sus frames 2 (el HUD de
-    // escaneo y las "zZz") ya traen ese detalle dibujado en el arte.
+    // SCANNING y SLEEP ya no lo necesitan porque sus frames 2 (la onda
+    // de radar corrida y las "Z" apiladas) ya traen ese detalle
+    // dibujado en la cara.
     if (estadoActual == ESTADO_HAPPY) {
         display->setTextColor(COLOR_ACCENT, COLOR_BG);
         display->setTextFont(2);
-        display->setCursor(x + MASCOTA_W + 10, y + MASCOTA_H / 2 - 10);
+        display->setCursor(x + CARA_ANCHO + 10, y + CARA_ALTO / 2 - 10);
         display->print("WII!");
         display->setTextFont(1);
     } else if (estadoActual == ESTADO_CURIOSA) {
@@ -237,7 +239,7 @@ void Mascota::dibujarSprite() {
         // mascota ya no ataca nada.
         display->setTextColor(COLOR_WARN, COLOR_BG);
         display->setTextFont(2);
-        display->setCursor(x + MASCOTA_W + 10, y + MASCOTA_H / 2 - 10);
+        display->setCursor(x + CARA_ANCHO + 10, y + CARA_ALTO / 2 - 10);
         display->print("?");
         display->setTextFont(1);
     }
@@ -253,8 +255,8 @@ void Mascota::setRedesEncontradas(int cantidad) {
 }
 
 void Mascota::tocar(int tx, int ty) {
-    if (tx >= spriteX && tx <= spriteX + MASCOTA_W &&
-        ty >= spriteY && ty <= spriteY + MASCOTA_H) {
+    if (tx >= spriteX && tx <= spriteX + CARA_ANCHO &&
+        ty >= spriteY && ty <= spriteY + CARA_ALTO) {
         setEstado(ESTADO_HAPPY);
     }
 }

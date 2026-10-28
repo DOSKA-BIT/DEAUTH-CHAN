@@ -167,6 +167,7 @@ void dibujarPantallaCategorias();
 void dibujarPantallaHerramientasSub();
 void manejarToqueCategorias(int y);
 void manejarToqueHerramientasSub(int y);
+bool esPantallaHoja(MenuScreen pantalla);
 
 // ---- Pantallas de la categoria WIFI (ScreenWifi.cpp) ----
 void dibujarListaRedes();
