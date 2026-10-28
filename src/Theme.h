@@ -49,6 +49,7 @@
 // lo sigue diciendo el nombre y el icono en si.
 #define COLOR_CAT_CYAN      COLOR_ACCENT
 #define COLOR_CAT_VIOLET    COLOR_ACCENT
+#define COLOR_CAT_RED       COLOR_ACCENT
 #define COLOR_CAT_YELLOW    COLOR_ACCENT
 #define COLOR_CAT_BLUE      COLOR_ACCENT
 #define COLOR_CAT_WHITE     COLOR_TEXT
