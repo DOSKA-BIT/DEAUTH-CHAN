@@ -183,6 +183,7 @@ void dibujarTextoEspaciado(int x, int y, const char* texto, uint16_t color, uint
 void dibujarLineaPunteada(int x, int y, int w, uint16_t color);
 void dibujarEsquinas(int x, int y, int w, int h, uint16_t color, int largo = 4);
 void dibujarBarraSegmentada(int x, int y, int w, int h, int segmentos, int llenos, uint16_t colorLleno, uint16_t colorVacio);
+void dibujarBarraSegmentadaV(int x, int y, int w, int h, int segmentos, int llenos, uint16_t colorLleno, uint16_t colorVacio);
 
 // ---- Pantallas de la categoria WIFI (ScreenWifi.cpp) ----
 void dibujarListaRedes();

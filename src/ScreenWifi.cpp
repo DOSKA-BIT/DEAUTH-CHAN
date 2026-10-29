@@ -504,12 +504,16 @@ void dibujarPantallaCanales() {
 
 // Analizador de canales, estilo "Channel Analyzer" de Marauder: a
 // diferencia de CANALES (que cuenta REDES del ultimo escaneo, foto
-// fija), esto cuenta TRAFICO real en vivo - cualquier frame 802.11
-// que pase, no solo beacons de AP - mientras el radio va girando
-// canal por canal (ver WiFiScanner::update() y el comentario largo de
-// ANALIZADOR_DWELL_MS en WiFiScanner.h). Arranca solo al entrar a esta
-// pantalla y se apaga solo al salir - ver el bloque de cambioPantalla
-// en loop(), main.cpp.
+// fija, y se dibuja como barras horizontales), esto calca el look
+// real de esa pantalla en Marauder - un grafico de barras VERTICALES,
+// una columna por canal - pero dibujado con el mismo lenguaje visual
+// ambar del resto del firmware (marco de solo esquinas, columnas
+// segmentadas en vez de solidas, texto con letras separadas). Cuenta
+// TRAFICO real en vivo - cualquier frame 802.11 que pase, no solo
+// beacons de AP - mientras el radio va girando canal por canal (ver
+// WiFiScanner::update() y el comentario largo de ANALIZADOR_DWELL_MS
+// en WiFiScanner.h). Arranca solo al entrar a esta pantalla y se apaga
+// solo al salir - ver el bloque de cambioPantalla en loop(), main.cpp.
 void dibujarPantallaAnalizador() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
     dibujarTituloSeccion("ANALIZADOR", COLOR_CAT_YELLOW, ICONO_CANALES);
@@ -523,38 +527,66 @@ void dibujarPantallaAnalizador() {
         if (conteo[i] > maxConteo) maxConteo = conteo[i];
     }
 
-    const int FILAS = ANALIZADOR_CANALES;
-    int altoFila = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / FILAS;
-    if (altoFila < 10) altoFila = 10;
-    int xBarra = 38;
-    int anchoMaxBarra = TFT_PANEL_WIDTH - xBarra - 35;
-    const int SEGMENTOS_BARRA = 16;
-
     int canalEscuchando = scanner.getCanalActualAnalizador();
 
-    int y = top + 2;
+    // Marco de solo esquinas (estilo Fennec) encerrando las 13
+    // columnas, con una franja chica debajo para el numero de cada
+    // canal - mismo "rack" que tiene la pantalla real de Marauder,
+    // nada mas que sin el rectangulo completo relleno.
+    int margenLateral = 8;
+    int altoRotulo = 10;
+    int yMarco = top + 4;
+    int altoMarco = alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA - altoRotulo - 8;
+    int anchoMarco = TFT_PANEL_WIDTH - margenLateral * 2;
+    if (altoMarco < 20) altoMarco = 20; // por si alguna placa queda con muy poco alto disponible
+    dibujarEsquinas(margenLateral, yMarco, anchoMarco, altoMarco, COLOR_ACCENT_DIM, 5);
+
+    const int SEGMENTOS_BARRA = 12;
+    int gapCol = 2;
+    int anchoCol = (anchoMarco - 6 - gapCol * (ANALIZADOR_CANALES - 1)) / ANALIZADOR_CANALES;
+    if (anchoCol < 4) anchoCol = 4;
+
+    int xBase = margenLateral + 3;
+    int yBaseBarra = yMarco + altoMarco - 3;
+    int altoBarra = altoMarco - 10; // deja lugar arriba para el marcador "^" del canal actual
+
+    int x = xBase;
     for (int ch = 1; ch <= ANALIZADOR_CANALES; ch++) {
         uint32_t cant = conteo[ch - 1];
         int llenos = (int)((cant * SEGMENTOS_BARRA) / maxConteo);
         if (cant > 0 && llenos < 1) llenos = 1;
 
-        // El canal donde esta parado el radio AHORA MISMO se marca en
-        // el acento brillante; el resto en texto apagado - asi se ve
-        // de un vistazo donde esta la "aguja" del barrido, no solo el
-        // acumulado de cada canal.
+        // El canal donde esta parado el radio AHORA MISMO se marca con
+        // la columna en el acento brillante (sand) + una "^" arriba;
+        // el resto queda en "line" (segundo tono, visible pero no
+        // protagonista) - asi se ve de un vistazo donde esta la aguja
+        // del barrido, no solo el acumulado de cada canal.
         bool esActual = (ch == canalEscuchando);
+        uint16_t colorColumna = esActual ? COLOR_ACCENT : COLOR_LINE;
+
+        dibujarBarraSegmentadaV(x, yBaseBarra - altoBarra, anchoCol, altoBarra,
+                                 SEGMENTOS_BARRA, llenos, colorColumna, COLOR_PANEL);
+
+        if (esActual) {
+            int cx = x + anchoCol / 2;
+            int cy = yBaseBarra - altoBarra - 6;
+            tft.drawLine(cx - 3, cy + 4, cx, cy, COLOR_ACCENT);
+            tft.drawLine(cx, cy, cx + 3, cy + 4, COLOR_ACCENT);
+        }
+
+        // Numero de canal, chico y sin espaciado extra (con 13
+        // columnas angostas no entra el estilo de letras separadas del
+        // resto de la interfaz sin que se pisen entre si).
+        char num[3];
+        snprintf(num, sizeof(num), "%d", ch);
+        int anchoNum = (int)strlen(num) * 6;
+        tft.setTextFont(1);
+        tft.setTextSize(1);
         tft.setTextColor(esActual ? COLOR_ACCENT : COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(2, y);
-        tft.print("CH");
-        tft.print(ch);
+        tft.setCursor(x + (anchoCol - anchoNum) / 2, yMarco + altoMarco + 4);
+        tft.print(num);
 
-        dibujarBarraSegmentada(xBarra, y, anchoMaxBarra, 8, SEGMENTOS_BARRA, llenos, COLOR_ACCENT, COLOR_PANEL);
-
-        tft.setTextColor(COLOR_TEXT, COLOR_BG);
-        tft.setCursor(xBarra + anchoMaxBarra + 4, y);
-        tft.print(cant);
-
-        y += altoFila;
+        x += anchoCol + gapCol;
     }
 
     char pie[48];

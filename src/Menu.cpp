@@ -163,6 +163,24 @@ void dibujarBarraSegmentada(int x, int y, int w, int h, int segmentos, int lleno
     }
 }
 
+// Misma idea que dibujarBarraSegmentada() de arriba, pero apilando los
+// segmentos de abajo hacia arriba en vez de de izquierda a derecha -
+// hace falta para el Analizador de canales, que calca el grafico de
+// barras VERTICALES de Marauder (una columna por canal) en vez de la
+// barra horizontal que usa CANALES.
+void dibujarBarraSegmentadaV(int x, int y, int w, int h, int segmentos, int llenos, uint16_t colorLleno, uint16_t colorVacio) {
+    if (segmentos <= 0) return;
+    int gap = 1;
+    int altoSeg = (h - gap * (segmentos - 1)) / segmentos;
+    if (altoSeg < 1) altoSeg = 1;
+    int cy = y + h - altoSeg;
+    for (int i = 0; i < segmentos; i++) {
+        uint16_t c = (i < llenos) ? colorLleno : colorVacio;
+        tft.fillRect(x, cy, w, altoSeg, c);
+        cy -= (altoSeg + gap);
+    }
+}
+
 void dibujarMenuBotones() {
     // Linea punteada arriba de la barra en vez de solida, para
     // separarla del contenido con el mismo trazo que el resto del
