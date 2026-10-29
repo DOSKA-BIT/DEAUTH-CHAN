@@ -502,6 +502,66 @@ void dibujarPantallaCanales() {
     }
 }
 
+// Analizador de canales, estilo "Channel Analyzer" de Marauder: a
+// diferencia de CANALES (que cuenta REDES del ultimo escaneo, foto
+// fija), esto cuenta TRAFICO real en vivo - cualquier frame 802.11
+// que pase, no solo beacons de AP - mientras el radio va girando
+// canal por canal (ver WiFiScanner::update() y el comentario largo de
+// ANALIZADOR_DWELL_MS en WiFiScanner.h). Arranca solo al entrar a esta
+// pantalla y se apaga solo al salir - ver el bloque de cambioPantalla
+// en loop(), main.cpp.
+void dibujarPantallaAnalizador() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("ANALIZADOR", COLOR_CAT_YELLOW, ICONO_CANALES);
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+
+    uint32_t conteo[ANALIZADOR_CANALES];
+    scanner.getConteoCanales(conteo, ANALIZADOR_CANALES);
+
+    uint32_t maxConteo = 1; // nunca 0, para no dividir por 0 mas abajo
+    for (int i = 0; i < ANALIZADOR_CANALES; i++) {
+        if (conteo[i] > maxConteo) maxConteo = conteo[i];
+    }
+
+    const int FILAS = ANALIZADOR_CANALES;
+    int altoFila = (alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA) / FILAS;
+    if (altoFila < 10) altoFila = 10;
+    int xBarra = 38;
+    int anchoMaxBarra = TFT_PANEL_WIDTH - xBarra - 35;
+    const int SEGMENTOS_BARRA = 16;
+
+    int canalEscuchando = scanner.getCanalActualAnalizador();
+
+    int y = top + 2;
+    for (int ch = 1; ch <= ANALIZADOR_CANALES; ch++) {
+        uint32_t cant = conteo[ch - 1];
+        int llenos = (int)((cant * SEGMENTOS_BARRA) / maxConteo);
+        if (cant > 0 && llenos < 1) llenos = 1;
+
+        // El canal donde esta parado el radio AHORA MISMO se marca en
+        // el acento brillante; el resto en texto apagado - asi se ve
+        // de un vistazo donde esta la "aguja" del barrido, no solo el
+        // acumulado de cada canal.
+        bool esActual = (ch == canalEscuchando);
+        tft.setTextColor(esActual ? COLOR_ACCENT : COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(2, y);
+        tft.print("CH");
+        tft.print(ch);
+
+        dibujarBarraSegmentada(xBarra, y, anchoMaxBarra, 8, SEGMENTOS_BARRA, llenos, COLOR_ACCENT, COLOR_PANEL);
+
+        tft.setTextColor(COLOR_TEXT, COLOR_BG);
+        tft.setCursor(xBarra + anchoMaxBarra + 4, y);
+        tft.print(cant);
+
+        y += altoFila;
+    }
+
+    char pie[48];
+    snprintf(pie, sizeof(pie), "Escuchando canal %d - trafico en vivo", canalEscuchando);
+    dibujarPieAyuda(pie);
+}
+
 // Compara las redes del ULTIMO escaneo entre si y marca que SSID
 // aparece con mas de un BSSID distinto EN EL MISMO escaneo - la señal
 // pasiva clasica de un posible "gemelo malvado". No es una certeza

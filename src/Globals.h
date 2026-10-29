@@ -99,6 +99,7 @@ enum MenuScreen {
     SCREEN_EVENTOS,
     SCREEN_MONITOR,
     SCREEN_CANALES,
+    SCREEN_ANALIZADOR,
     SCREEN_DUPLICADOS,
     SCREEN_RADAR,
     SCREEN_GAME
@@ -191,6 +192,7 @@ void dibujarPantallaConocidas();
 void dibujarPantallaEventos();
 void dibujarPantallaMonitor();
 void dibujarPantallaCanales();
+void dibujarPantallaAnalizador();
 void dibujarPantallaDuplicados();
 void dibujarPantallaGame();
 int exportarResumenSesion();

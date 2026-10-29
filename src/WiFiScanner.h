@@ -12,6 +12,17 @@
 #define PCAP_BUFFER_SIZE 16
 #define PCAP_FRAME_MAX 128
 
+// Analizador de canales (estilo "Channel Analyzer" de Marauder): el
+// radio va saltando canal por canal (1 a 13), se queda ANALIZADOR_DWELL_MS
+// en cada uno contando CUALQUIER frame 802.11 que vea pasar (no solo
+// beacons de AP, como hace CANALES - esto es trafico real, no
+// cantidad de redes), y sigue girando la rueda mientras la pantalla
+// este abierta. Pura recepcion, igual que el resto del firmware: el
+// radio nunca transmite nada, solo escucha y cambia de canal para
+// escuchar otro pedazo del espectro.
+#define ANALIZADOR_CANALES 13
+#define ANALIZADOR_DWELL_MS 300
+
 // Copia cruda de UN frame de management (beacon, probe req/resp,
 // deauth o disassoc - ver el filtro en promiscuousCallback()) para
 // pasarla de la tarea del driver WiFi al loop() principal, que es
@@ -113,6 +124,21 @@ public:
     unsigned long getPCAPCapturados() const { return pcapCapturados; }
     bool sacarPaquetePCAP(PaqueteCrudoWiFi& out);
 
+    // Analizador de canales (ver el comentario largo de
+    // ANALIZADOR_DWELL_MS mas arriba). iniciarAnalizadorCanales()
+    // reinicia los contadores y pone el radio a girar desde el canal
+    // 1; detenerAnalizadorCanales() solo baja la bandera (el radio se
+    // queda parado en el ultimo canal en el que estaba, igual que ya
+    // hace iniciarConteoClientes() al terminar - no hace falta
+    // "devolverlo" a ningun lado en particular). update() (ya se
+    // llama en cada vuelta del loop(), ver main.cpp) es quien de
+    // verdad hace avanzar la rueda de canales cada ANALIZADOR_DWELL_MS.
+    void iniciarAnalizadorCanales();
+    void detenerAnalizadorCanales();
+    bool analizadorEstaActivo() const { return analizadorActivo; }
+    int getCanalActualAnalizador() const { return canalActualAnalizador; }
+    void getConteoCanales(uint32_t* out, int n);
+
 private:
     static void promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type);
     void actualizarCliente(uint8_t* mac, int rssi, uint8_t* bssid, int canal);
@@ -177,6 +203,26 @@ private:
     int pcapPendientes = 0;
     bool pcapActivo = false;
     unsigned long pcapCapturados = 0; // total historico, para mostrar en pantalla
+
+    // Analizador de canales. "analizadorActivo" es, igual que
+    // "pcapActivo" mas arriba, el UNICO lugar donde se lee/escribe sin
+    // el mux a proposito: es un simple bool, lo escribe un solo lugar
+    // (iniciarAnalizadorCanales()/detenerAnalizadorCanales(), desde
+    // loop()) y lo lee un solo lugar (promiscuousCallback(), desde la
+    // tarea del driver WiFi) - en el peor caso de carrera se cuenta o
+    // se descarta UN paquete de mas justo en el instante de
+    // prender/apagar, nada grave. "canalActualAnalizador" tambien
+    // queda sin mux: lo escribe update() y lo lee la pantalla para
+    // mostrar "escuchando canal X", pero ambos corren en la MISMA
+    // tarea (loop() principal, nunca desde el callback de WiFi), asi
+    // que no hay carrera posible ahi. "conteoPorCanal" SI necesita el
+    // mux (lo escribe el callback de WiFi, lo lee getConteoCanales()
+    // desde loop() - dos tareas distintas tocando el mismo array,
+    // mismo motivo que "anomalias" mas arriba).
+    bool analizadorActivo = false;
+    int canalActualAnalizador = 1;
+    unsigned long analizadorUltimoCambio = 0;
+    uint32_t conteoPorCanal[ANALIZADOR_CANALES] = {0};
 
     static WiFiScanner* instance;
 };

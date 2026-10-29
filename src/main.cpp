@@ -171,6 +171,7 @@ Herramienta herramientas[] = {
     {"MONITOR",   "Deauth/disassoc detectados",       CAT_WIFI,       SCREEN_MONITOR,   COLOR_CAT_RED,    ICONO_MONITOR,   0, 0},
     {"EVENTOS",   "Historial de esta sesion",         CAT_WIFI,       SCREEN_EVENTOS,   COLOR_CAT_BLUE,   ICONO_EVENTOS,   0, 0},
     {"CANALES",   "Uso del espectro, canal por canal", CAT_WIFI,       SCREEN_CANALES,   COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
+    {"ANALIZADOR","Trafico en vivo, canal por canal", CAT_WIFI,       SCREEN_ANALIZADOR,COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
     {"DUPLICADO", "SSID repetido en el ultimo escaneo",CAT_WIFI,       SCREEN_DUPLICADOS,COLOR_CAT_RED,    ICONO_DUPLICADO, 0, 0},
     // Vacio a proposito (pedido explicito del usuario): sin logica
     // adentro, nada mas el boton, el icono y una pantalla en blanco -
@@ -185,7 +186,7 @@ const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0])
 // Dispatcher de toque: primero resuelve los dos botones fijos de
 // abajo (siempre activos, en cualquier pantalla), y despues deriva a
 // la funcion de toque que corresponde segun la pantalla activa. Las
-// pantallas sin nada tocable (STATS, CONFIG, CANALES, DUPLICADOS,
+// pantallas sin nada tocable (STATS, CONFIG, CANALES, ANALIZADOR, DUPLICADOS,
 // RADAR, GAME) caen en el "default" y no hacen nada, igual que antes.
 void manejarToque(int x, int y) {
     for (int i = 0; i < 2; i++) {
@@ -412,7 +413,8 @@ void loop() {
     // el usuario tiene el control manual) y la mascota no esta
     // dormida (no tiene sentido gastar radio con la pantalla apagada
     // por inactividad).
-    if (!escaneando && !scanner.conteoEnProgreso() && pantallaActual != SCREEN_SCAN &&
+    if (!escaneando && !scanner.conteoEnProgreso() && !scanner.analizadorEstaActivo() &&
+        pantallaActual != SCREEN_SCAN && pantallaActual != SCREEN_ANALIZADOR &&
         mascota.getEstado() != ESTADO_SLEEP &&
         millis() - ultimoAutoScan >= AUTO_SCAN_MS) {
         ultimoAutoScan = millis();
@@ -457,6 +459,18 @@ void loop() {
     bool cambioPantalla = (pantallaActual != pantallaAnterior);
     if (cambioPantalla) {
         contenidoSucio = true;
+
+        // El Analizador de canales prende/apaga su propia rueda de
+        // canales justo al entrar/salir de esta pantalla puntual (ver
+        // el comentario largo de ANALIZADOR_DWELL_MS en WiFiScanner.h)
+        // - ni arranca solo de fondo ni se queda girando canales
+        // despues de que te fuiste a otra pantalla.
+        if (pantallaAnterior == SCREEN_ANALIZADOR) {
+            scanner.detenerAnalizadorCanales();
+        }
+        if (pantallaActual == SCREEN_ANALIZADOR) {
+            scanner.iniciarAnalizadorCanales();
+        }
     }
 
     // La mascota se dibuja en la misma franja central que usan las
@@ -542,6 +556,9 @@ void loop() {
                 case SCREEN_CANALES:
                     dibujarPantallaCanales();
                     break;
+                case SCREEN_ANALIZADOR:
+                    dibujarPantallaAnalizador();
+                    break;
                 case SCREEN_DUPLICADOS:
                     dibujarPantallaDuplicados();
                     break;
@@ -605,6 +622,22 @@ void loop() {
                 ultimoRefrescoRadar = ahoraRadar;
                 if (!cambioPantalla) {
                     dibujarPantallaRadar();
+                }
+            }
+        }
+
+        // Mismo patron que RADAR/MONITOR: el Analizador vive de datos
+        // que se acumulan solos de fondo (el callback de WiFi contando
+        // trafico por canal) mas la rueda de canales que gira sola, asi
+        // que sin esto la pantalla se quedaria congelada en la primera
+        // foto hasta que la tocaras.
+        if (pantallaActual == SCREEN_ANALIZADOR) {
+            static unsigned long ultimoRefrescoAnalizador = 0;
+            unsigned long ahoraAnalizador = millis();
+            if (cambioPantalla || ahoraAnalizador - ultimoRefrescoAnalizador >= ANALIZADOR_DWELL_MS) {
+                ultimoRefrescoAnalizador = ahoraAnalizador;
+                if (!cambioPantalla) {
+                    dibujarPantallaAnalizador();
                 }
             }
         }

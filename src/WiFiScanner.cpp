@@ -83,10 +83,48 @@ void WiFiScanner::iniciarConteoClientes(const uint8_t* bssid, int canal) {
 }
 
 void WiFiScanner::update() {
-    if (!escuchandoClientes) return;
-    if (millis() - conteoInicio >= CONTEO_CLIENTES_MS) {
+    if (escuchandoClientes && millis() - conteoInicio >= CONTEO_CLIENTES_MS) {
         finalizarConteoClientes();
     }
+
+    // Rueda de canales del analizador (ver el comentario largo de
+    // ANALIZADOR_DWELL_MS en el .h): cada tanto, salta al siguiente
+    // canal (1..13, ciclico) y se queda ahi escuchando hasta el
+    // proximo salto. No bloquea nada - un canal por vuelta de loop()
+    // que corresponda, igual que el resto de esta funcion.
+    if (analizadorActivo && millis() - analizadorUltimoCambio >= ANALIZADOR_DWELL_MS) {
+        canalActualAnalizador = (canalActualAnalizador % ANALIZADOR_CANALES) + 1;
+        esp_wifi_set_channel(canalActualAnalizador, WIFI_SECOND_CHAN_NONE);
+        analizadorUltimoCambio = millis();
+    }
+}
+
+void WiFiScanner::iniciarAnalizadorCanales() {
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; i < ANALIZADOR_CANALES; i++) conteoPorCanal[i] = 0;
+    portEXIT_CRITICAL(&mux);
+
+    canalActualAnalizador = 1;
+    analizadorUltimoCambio = millis();
+    esp_wifi_set_channel(canalActualAnalizador, WIFI_SECOND_CHAN_NONE);
+    analizadorActivo = true;
+    Serial.println("Analizador de canales: arrancado");
+}
+
+void WiFiScanner::detenerAnalizadorCanales() {
+    // Solo baja la bandera - el radio se queda escuchando en el ultimo
+    // canal en el que estaba, mismo criterio que ya usa
+    // iniciarConteoClientes()/finalizarConteoClientes() (tampoco
+    // "devuelven" el canal a ningun lado en particular al terminar).
+    analizadorActivo = false;
+    Serial.println("Analizador de canales: detenido");
+}
+
+void WiFiScanner::getConteoCanales(uint32_t* out, int n) {
+    if (n > ANALIZADOR_CANALES) n = ANALIZADOR_CANALES;
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; i < n; i++) out[i] = conteoPorCanal[i];
+    portEXIT_CRITICAL(&mux);
 }
 
 bool WiFiScanner::conteoEnProgreso() {
@@ -270,6 +308,22 @@ void WiFiScanner::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t typ
         (subtipoFrame == 0x08 || subtipoFrame == 0x04 || subtipoFrame == 0x05 ||
          subtipoFrame == 0x0C || subtipoFrame == 0x0A)) {
         instance->empujarPCAP(frame, len);
+    }
+
+    // Analizador de canales: cuenta CUALQUIER frame (no filtra por
+    // tipo/subtipo como el monitor o el PCAP de arriba - a diferencia
+    // de esos, aca interesa el volumen total de trafico de cada canal,
+    // no que clase de paquete es). pkt->rx_ctrl.channel es el canal en
+    // el que el driver realmente recibio ESTE paquete en particular,
+    // asi que no hace falta leer canalActualAnalizador aca (evita
+    // cualquier duda de sincronizacion entre esta tarea y update()).
+    if (instance->analizadorActivo) {
+        int ch = pkt->rx_ctrl.channel;
+        if (ch >= 1 && ch <= ANALIZADOR_CANALES) {
+            portENTER_CRITICAL(&instance->mux);
+            instance->conteoPorCanal[ch - 1]++;
+            portEXIT_CRITICAL(&instance->mux);
+        }
     }
 
     if (!instance->escuchandoClientes) return;
