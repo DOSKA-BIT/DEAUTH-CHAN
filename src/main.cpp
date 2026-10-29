@@ -76,6 +76,17 @@ int escaneosAcumulados = 0;
 int ordenConocidas = 0;
 const int ALTO_BOTON_ORDEN = 18;
 
+// Analizador de canales: escala de X (cuantas muestras del historial
+// entran en pantalla - mas alto = mas "zoom" en el tiempo reciente,
+// menos muestras visibles pero cada una mas ancha) y de Y (cuanto
+// vale en pixeles una unidad de conteo - mas alto = picos chicos se
+// ven mas grandes). Arrancan en valores razonables para que el
+// grafico se vea bien apenas se entra, se ajustan con los botones +/-
+// de la pantalla (ver dibujarPantallaAnalizador() y manejarToqueWifi(),
+// caso SCREEN_ANALIZADOR, ambas en ScreenWifi.cpp).
+int analizadorEscalaX = 1;
+int analizadorEscalaY = 2;
+
 // Filtro de que se guarda en wardriving.csv: 0 = todas las redes
 // (comportamiento de siempre), 1 = solo las abiertas, 2 = solo las
 // que tienen clave.
@@ -186,7 +197,7 @@ const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0])
 // Dispatcher de toque: primero resuelve los dos botones fijos de
 // abajo (siempre activos, en cualquier pantalla), y despues deriva a
 // la funcion de toque que corresponde segun la pantalla activa. Las
-// pantallas sin nada tocable (STATS, CONFIG, CANALES, ANALIZADOR, DUPLICADOS,
+// pantallas sin nada tocable (STATS, CONFIG, CANALES, DUPLICADOS,
 // RADAR, GAME) caen en el "default" y no hacen nada, igual que antes.
 void manejarToque(int x, int y) {
     for (int i = 0; i < 2; i++) {
@@ -228,6 +239,7 @@ void manejarToque(int x, int y) {
         case SCREEN_CONOCIDAS:
         case SCREEN_EVENTOS:
         case SCREEN_MONITOR:
+        case SCREEN_ANALIZADOR:
             manejarToqueWifi(pantallaActual, x, y);
             break;
         case SCREEN_WARDRIVE:

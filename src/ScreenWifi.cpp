@@ -502,96 +502,153 @@ void dibujarPantallaCanales() {
     }
 }
 
-// Analizador de canales, estilo "Channel Analyzer" de Marauder: a
-// diferencia de CANALES (que cuenta REDES del ultimo escaneo, foto
-// fija, y se dibuja como barras horizontales), esto calca el look
-// real de esa pantalla en Marauder - un grafico de barras VERTICALES,
-// una columna por canal - pero dibujado con el mismo lenguaje visual
-// ambar del resto del firmware (marco de solo esquinas, columnas
-// segmentadas en vez de solidas, texto con letras separadas). Cuenta
-// TRAFICO real en vivo - cualquier frame 802.11 que pase, no solo
-// beacons de AP - mientras el radio va girando canal por canal (ver
-// WiFiScanner::update() y el comentario largo de ANALIZADOR_DWELL_MS
-// en WiFiScanner.h). Arranca solo al entrar a esta pantalla y se apaga
-// solo al salir - ver el bloque de cambioPantalla en loop(), main.cpp.
+// Alto de la franja de controles (Channel/Y/X +/-) de ANALIZADOR, de
+// abajo del grafico - dibujarPantallaAnalizador() y manejarToqueWifi()
+// (caso SCREEN_ANALIZADOR, mas abajo) comparten este mismo numero para
+// que el toque siempre coincida con lo que se ve dibujado, mismo
+// criterio que ALTO_BOTON_ORDEN/ALTO_BOTON_EXPORTAR.
+const int ALTO_CONTROLES_ANALIZADOR = 34;
+
+// Analizador de canales: calca la pantalla REAL de Marauder (foto que
+// mando el usuario) en vez del grafico de barras por canal de la
+// primera version de esto - un grafico de LINEA en el TIEMPO de un
+// solo canal elegido a mano, con 3 series separadas por color
+// (Beacons/Deauths/Probes, igual que el legend de Marauder) y
+// controles de Channel, escala Y y escala X. Todo dibujado con el
+// lenguaje visual ambar del resto del firmware (marco de solo
+// esquinas, texto con letras separadas, controles tipo "caja con
+// esquinas" en vez de botones rellenos). Pura recepcion: el radio
+// nunca transmite, y los controles de esta pantalla solo cambian A
+// QUE escucha (el canal) o COMO se dibuja (las escalas) - ver el
+// comentario largo de ANALIZADOR_DWELL_MS en WiFiScanner.h. Arranca
+// solo al entrar a esta pantalla y se apaga solo al salir - ver el
+// bloque de cambioPantalla en loop(), main.cpp.
 void dibujarPantallaAnalizador() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
     dibujarTituloSeccion("ANALIZADOR", COLOR_CAT_YELLOW, ICONO_CANALES);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
-    uint32_t conteo[ANALIZADOR_CANALES];
-    scanner.getConteoCanales(conteo, ANALIZADOR_CANALES);
+    uint16_t histBeacons[ANALIZADOR_MUESTRAS];
+    uint16_t histDeauths[ANALIZADOR_MUESTRAS];
+    uint16_t histProbes[ANALIZADOR_MUESTRAS];
+    scanner.getHistorialAnalizador(histBeacons, histDeauths, histProbes, ANALIZADOR_MUESTRAS);
 
-    uint32_t maxConteo = 1; // nunca 0, para no dividir por 0 mas abajo
-    for (int i = 0; i < ANALIZADOR_CANALES; i++) {
-        if (conteo[i] > maxConteo) maxConteo = conteo[i];
+    int canal = scanner.getCanalActualAnalizador();
+
+    // --- Leyenda: una chapita de color + nombre + ultima muestra de
+    // cada serie, igual que el recuadro "Beacons/Deauths/Probes" de la
+    // referencia. Deauths en COLOR_DANGER a proposito (no en la
+    // paleta ambar): es la misma excepcion que ya usa Monitor para
+    // marcar esa señal como la que de verdad importa vigilar, y aca
+    // sigue siendo justo eso.
+    int yLeyenda = top + 2;
+    int xLeyenda = 10;
+    // Nombres abreviados a proposito (BCN/DEA/PRB en vez de BEACONS/
+    // DEAUTHS/PROBES): con 3 series + numero en la misma franja, el
+    // nombre completo no entra en los 240px de las placas chicas sin
+    // que la leyenda se corte - el color ya identifica cual es cual
+    // igual que en la referencia, el texto es solo un recordatorio.
+    struct { const char* nombre; uint16_t color; uint16_t ultimo; } series[3] = {
+        {"BCN", COLOR_LINE,   histBeacons[ANALIZADOR_MUESTRAS - 1]},
+        {"DEA", COLOR_DANGER, histDeauths[ANALIZADOR_MUESTRAS - 1]},
+        {"PRB", COLOR_ACCENT, histProbes[ANALIZADOR_MUESTRAS - 1]},
+    };
+    for (int i = 0; i < 3; i++) {
+        char etiqueta[12];
+        snprintf(etiqueta, sizeof(etiqueta), "%s %u", series[i].nombre, series[i].ultimo);
+        tft.fillRect(xLeyenda, yLeyenda + 2, 6, 6, series[i].color);
+        dibujarTextoEspaciado(xLeyenda + 10, yLeyenda, etiqueta, series[i].color, COLOR_BG, 1);
+        xLeyenda += 10 + anchoTextoEspaciado(etiqueta, 1) + 10;
     }
 
-    int canalEscuchando = scanner.getCanalActualAnalizador();
+    // --- Marco del grafico: solo esquinas, estilo Fennec, igual que
+    // el resto de las cajas de esta interfaz desde el restyle.
+    int yMarco = yLeyenda + 14;
+    int altoDisponible = alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA;
+    int altoMarco = altoDisponible - (yMarco - top) - ALTO_CONTROLES_ANALIZADOR - 4;
+    if (altoMarco < 30) altoMarco = 30; // por si alguna placa queda con muy poco alto disponible
+    int xMarco = 8;
+    int anchoMarco = TFT_PANEL_WIDTH - xMarco * 2;
+    dibujarEsquinas(xMarco, yMarco, anchoMarco, altoMarco, COLOR_ACCENT_DIM, 5);
 
-    // Marco de solo esquinas (estilo Fennec) encerrando las 13
-    // columnas, con una franja chica debajo para el numero de cada
-    // canal - mismo "rack" que tiene la pantalla real de Marauder,
-    // nada mas que sin el rectangulo completo relleno.
-    int margenLateral = 8;
-    int altoRotulo = 10;
-    int yMarco = top + 4;
-    int altoMarco = alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA - altoRotulo - 8;
-    int anchoMarco = TFT_PANEL_WIDTH - margenLateral * 2;
-    if (altoMarco < 20) altoMarco = 20; // por si alguna placa queda con muy poco alto disponible
-    dibujarEsquinas(margenLateral, yMarco, anchoMarco, altoMarco, COLOR_ACCENT_DIM, 5);
+    // --- Las 3 series, como lineas quebradas conectando cada muestra
+    // del historial (en vez de un area rellena: con 3 series pisandose
+    // encima, lineas finas se leen mejor que 3 manchas solidas
+    // superpuestas). "escalaX" controla CUANTAS muestras recientes se
+    // ven (mas escala = menos muestras = mas "zoom" en el tiempo
+    // reciente); "escalaY" multiplica el alto en pixeles de cada
+    // unidad de conteo (mas escala = picos chicos se ven mas grandes).
+    int visibles = ANALIZADOR_MUESTRAS / analizadorEscalaX;
+    if (visibles < 2) visibles = 2;
+    if (visibles > ANALIZADOR_MUESTRAS) visibles = ANALIZADOR_MUESTRAS;
+    int primerIndice = ANALIZADOR_MUESTRAS - visibles;
 
-    const int SEGMENTOS_BARRA = 12;
-    int gapCol = 2;
-    int anchoCol = (anchoMarco - 6 - gapCol * (ANALIZADOR_CANALES - 1)) / ANALIZADOR_CANALES;
-    if (anchoCol < 4) anchoCol = 4;
+    int xGrafico = xMarco + 3;
+    int anchoGrafico = anchoMarco - 6;
+    int yBase = yMarco + altoMarco - 3;
+    int altoUtil = altoMarco - 6;
+    float pasoX = (visibles > 1) ? (float)anchoGrafico / (visibles - 1) : 0;
 
-    int xBase = margenLateral + 3;
-    int yBaseBarra = yMarco + altoMarco - 3;
-    int altoBarra = altoMarco - 10; // deja lugar arriba para el marcador "^" del canal actual
-
-    int x = xBase;
-    for (int ch = 1; ch <= ANALIZADOR_CANALES; ch++) {
-        uint32_t cant = conteo[ch - 1];
-        int llenos = (int)((cant * SEGMENTOS_BARRA) / maxConteo);
-        if (cant > 0 && llenos < 1) llenos = 1;
-
-        // El canal donde esta parado el radio AHORA MISMO se marca con
-        // la columna en el acento brillante (sand) + una "^" arriba;
-        // el resto queda en "line" (segundo tono, visible pero no
-        // protagonista) - asi se ve de un vistazo donde esta la aguja
-        // del barrido, no solo el acumulado de cada canal.
-        bool esActual = (ch == canalEscuchando);
-        uint16_t colorColumna = esActual ? COLOR_ACCENT : COLOR_LINE;
-
-        dibujarBarraSegmentadaV(x, yBaseBarra - altoBarra, anchoCol, altoBarra,
-                                 SEGMENTOS_BARRA, llenos, colorColumna, COLOR_PANEL);
-
-        if (esActual) {
-            int cx = x + anchoCol / 2;
-            int cy = yBaseBarra - altoBarra - 6;
-            tft.drawLine(cx - 3, cy + 4, cx, cy, COLOR_ACCENT);
-            tft.drawLine(cx, cy, cx + 3, cy + 4, COLOR_ACCENT);
+    uint16_t* hist[3] = {histBeacons, histDeauths, histProbes};
+    for (int s = 0; s < 3; s++) {
+        int xPrev = 0, yPrev = 0;
+        for (int i = 0; i < visibles; i++) {
+            uint16_t valor = hist[s][primerIndice + i];
+            int alto = valor * analizadorEscalaY;
+            if (alto > altoUtil) alto = altoUtil; // recorta picos que no entran, no deforma la escala del resto
+            int x = xGrafico + (int)(i * pasoX);
+            int y = yBase - alto;
+            if (i > 0) {
+                tft.drawLine(xPrev, yPrev, x, y, series[s].color);
+            }
+            xPrev = x;
+            yPrev = y;
         }
-
-        // Numero de canal, chico y sin espaciado extra (con 13
-        // columnas angostas no entra el estilo de letras separadas del
-        // resto de la interfaz sin que se pisen entre si).
-        char num[3];
-        snprintf(num, sizeof(num), "%d", ch);
-        int anchoNum = (int)strlen(num) * 6;
-        tft.setTextFont(1);
-        tft.setTextSize(1);
-        tft.setTextColor(esActual ? COLOR_ACCENT : COLOR_TEXT_DIM, COLOR_BG);
-        tft.setCursor(x + (anchoCol - anchoNum) / 2, yMarco + altoMarco + 4);
-        tft.print(num);
-
-        x += anchoCol + gapCol;
     }
 
-    char pie[48];
-    snprintf(pie, sizeof(pie), "Escuchando canal %d - trafico en vivo", canalEscuchando);
-    dibujarPieAyuda(pie);
+    // --- Controles: 3 grupos [-][valor][+] lado a lado (Channel / Y /
+    // X), cajas de solo esquinas en vez de botones rellenos. Mismos
+    // numeros que usa manejarToqueWifi() (caso SCREEN_ANALIZADOR) para
+    // que el toque coincida siempre con esto.
+    int yControles = yMarco + altoMarco + 4;
+    int anchoGrupo = TFT_PANEL_WIDTH / 3;
+    int anchoBtn = 22;
+    int altoBtn = ALTO_CONTROLES_ANALIZADOR - 10;
+
+    char valorCanal[4];
+    snprintf(valorCanal, sizeof(valorCanal), "%d", canal);
+    char valorY[6];
+    snprintf(valorY, sizeof(valorY), "Yx%d", analizadorEscalaY);
+    char valorX[6];
+    snprintf(valorX, sizeof(valorX), "Xx%d", analizadorEscalaX);
+    const char* etiquetas[3] = {"CH", valorY, valorX};
+    const char* valores[3] = {valorCanal, "", ""};
+
+    for (int g = 0; g < 3; g++) {
+        int xGrupo = g * anchoGrupo;
+        int xMenos = xGrupo + 4;
+        int xMas = xGrupo + anchoGrupo - anchoBtn - 4;
+        int yBtn = yControles + 5;
+
+        dibujarEsquinas(xMenos, yBtn, anchoBtn, altoBtn, COLOR_ACCENT_DIM, 3);
+        dibujarTextoEspaciado(xMenos + 7, yBtn + (altoBtn / 2) - 3, "-", COLOR_TEXT, COLOR_BG, 0);
+
+        dibujarEsquinas(xMas, yBtn, anchoBtn, altoBtn, COLOR_ACCENT_DIM, 3);
+        dibujarTextoEspaciado(xMas + 7, yBtn + (altoBtn / 2) - 3, "+", COLOR_TEXT, COLOR_BG, 0);
+
+        // Etiqueta/valor centrado entre los dos botones del grupo.
+        char medio[10];
+        if (g == 0) {
+            snprintf(medio, sizeof(medio), "%s%s", etiquetas[g], valores[g]);
+        } else {
+            snprintf(medio, sizeof(medio), "%s", etiquetas[g]);
+        }
+        int anchoMedio = anchoTextoEspaciado(medio, 1);
+        int xMedio = xMenos + anchoBtn + ((xMas - (xMenos + anchoBtn)) - anchoMedio) / 2;
+        dibujarTextoEspaciado(xMedio, yBtn + (altoBtn / 2) - 3, medio, COLOR_TEXT_DIM, COLOR_BG, 1);
+    }
+
+    dibujarPieAyuda("Toca - o + para ajustar Channel / escala Y / X");
 }
 
 // Compara las redes del ULTIMO escaneo entre si y marca que SSID
@@ -840,6 +897,56 @@ void manejarToqueWifi(MenuScreen pantalla, int x, int y) {
                 #endif
                 contenidoSucio = true;
             }
+            break;
+        }
+        case SCREEN_ANALIZADOR: {
+            // Mismos numeros que dibujarPantallaAnalizador() usa para
+            // ubicar el marco del grafico y la franja de controles -
+            // si alguno de los dos cambia sin el otro, el toque deja
+            // de coincidir con lo que se ve dibujado.
+            int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+            int yLeyenda = top + 2;
+            int yMarco = yLeyenda + 14;
+            int altoDisponible = alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA;
+            int altoMarco = altoDisponible - (yMarco - top) - ALTO_CONTROLES_ANALIZADOR - 4;
+            if (altoMarco < 30) altoMarco = 30;
+            int yControles = yMarco + altoMarco + 4;
+
+            int anchoBtn = 22;
+            int altoBtn = ALTO_CONTROLES_ANALIZADOR - 10;
+            int yBtn = yControles + 5;
+            if (y < yBtn || y > yBtn + altoBtn) break;
+
+            int anchoGrupo = TFT_PANEL_WIDTH / 3;
+            int grupo = x / anchoGrupo;
+            if (grupo > 2) grupo = 2;
+            int xGrupo = grupo * anchoGrupo;
+            int xMenos = xGrupo + 4;
+            int xMas = xGrupo + anchoGrupo - anchoBtn - 4;
+
+            bool tocoMenos = (x >= xMenos && x <= xMenos + anchoBtn);
+            bool tocoMas = (x >= xMas && x <= xMas + anchoBtn);
+            if (!tocoMenos && !tocoMas) break;
+
+            if (grupo == 0) {
+                // Channel: ciclico entre 1 y 13 (no tiene sentido
+                // "pasarse" del ultimo canal y quedar en un numero
+                // invalido, mejor dar la vuelta).
+                int canal = scanner.getCanalActualAnalizador();
+                canal += tocoMas ? 1 : -1;
+                if (canal < 1) canal = 13;
+                if (canal > 13) canal = 1;
+                scanner.setCanalAnalizador(canal);
+            } else if (grupo == 1) {
+                analizadorEscalaY += tocoMas ? 1 : -1;
+                if (analizadorEscalaY < 1) analizadorEscalaY = 1;
+                if (analizadorEscalaY > 20) analizadorEscalaY = 20;
+            } else {
+                analizadorEscalaX += tocoMas ? 1 : -1;
+                if (analizadorEscalaX < 1) analizadorEscalaX = 1;
+                if (analizadorEscalaX > 4) analizadorEscalaX = 4;
+            }
+            contenidoSucio = true;
             break;
         }
         default:

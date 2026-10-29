@@ -152,6 +152,15 @@ extern const int ALTO_TITULO_SECCION;
 extern const int ALTO_PIE_AYUDA;
 extern const int ALTO_BOTON_EXPORTAR;
 extern const int ALTO_BLOQUE_MONITOR;
+extern const int ALTO_CONTROLES_ANALIZADOR;
+
+// ---- Analizador de canales: controles de pantalla (ScreenWifi.cpp) ----
+// Puramente visuales (que tan grande se dibuja el grafico y cuantas
+// muestras entran en pantalla) - no tocan el radio para nada, a
+// diferencia del canal elegido (ese vive en WiFiScanner, ver
+// setCanalAnalizador()).
+extern int analizadorEscalaX;
+extern int analizadorEscalaY;
 
 // ---- RADAR: timing del barrido (definidos en ScreenRadar.cpp) ----
 extern const unsigned long RADAR_BARRIDO_MS;

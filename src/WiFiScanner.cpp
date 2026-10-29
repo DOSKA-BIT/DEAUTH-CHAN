@@ -87,32 +87,55 @@ void WiFiScanner::update() {
         finalizarConteoClientes();
     }
 
-    // Rueda de canales del analizador (ver el comentario largo de
-    // ANALIZADOR_DWELL_MS en el .h): cada tanto, salta al siguiente
-    // canal (1..13, ciclico) y se queda ahi escuchando hasta el
-    // proximo salto. No bloquea nada - un canal por vuelta de loop()
-    // que corresponda, igual que el resto de esta funcion.
-    if (analizadorActivo && millis() - analizadorUltimoCambio >= ANALIZADOR_DWELL_MS) {
-        canalActualAnalizador = (canalActualAnalizador % ANALIZADOR_CANALES) + 1;
-        esp_wifi_set_channel(canalActualAnalizador, WIFI_SECOND_CHAN_NONE);
-        analizadorUltimoCambio = millis();
+    // Muestreo del analizador de canales (ver el comentario largo de
+    // ANALIZADOR_DWELL_MS en el .h): cada tanto, congela lo que se
+    // acumulo de cada tipo de frame desde la ultima muestra, lo
+    // empuja al historial (shift simple, igual que EventLog/
+    // registrarAnomalia - con 48 lugares nomas no vale la pena un
+    // indice de buffer circular) y arranca de nuevo en 0. No bloquea
+    // nada ni toca el radio - el canal lo fija setCanalAnalizador(),
+    // esto solo lee contadores.
+    if (analizadorActivo && millis() - analizadorUltimoMuestreo >= ANALIZADOR_DWELL_MS) {
+        uint16_t b, d, p;
+        portENTER_CRITICAL(&mux);
+        b = accBeacons; accBeacons = 0;
+        d = accDeauths; accDeauths = 0;
+        p = accProbes;  accProbes = 0;
+        portEXIT_CRITICAL(&mux);
+
+        for (int i = 0; i < ANALIZADOR_MUESTRAS - 1; i++) {
+            histBeacons[i] = histBeacons[i + 1];
+            histDeauths[i] = histDeauths[i + 1];
+            histProbes[i] = histProbes[i + 1];
+        }
+        histBeacons[ANALIZADOR_MUESTRAS - 1] = b;
+        histDeauths[ANALIZADOR_MUESTRAS - 1] = d;
+        histProbes[ANALIZADOR_MUESTRAS - 1] = p;
+
+        analizadorUltimoMuestreo = millis();
     }
 }
 
 void WiFiScanner::iniciarAnalizadorCanales() {
+    for (int i = 0; i < ANALIZADOR_MUESTRAS; i++) {
+        histBeacons[i] = 0;
+        histDeauths[i] = 0;
+        histProbes[i] = 0;
+    }
     portENTER_CRITICAL(&mux);
-    for (int i = 0; i < ANALIZADOR_CANALES; i++) conteoPorCanal[i] = 0;
+    accBeacons = 0;
+    accDeauths = 0;
+    accProbes = 0;
     portEXIT_CRITICAL(&mux);
 
-    canalActualAnalizador = 1;
-    analizadorUltimoCambio = millis();
+    analizadorUltimoMuestreo = millis();
     esp_wifi_set_channel(canalActualAnalizador, WIFI_SECOND_CHAN_NONE);
     analizadorActivo = true;
-    Serial.println("Analizador de canales: arrancado");
+    Serial.printf("Analizador de canales: arrancado en canal %d\n", canalActualAnalizador);
 }
 
 void WiFiScanner::detenerAnalizadorCanales() {
-    // Solo baja la bandera - el radio se queda escuchando en el ultimo
+    // Solo baja la bandera - el radio se queda escuchando en el mismo
     // canal en el que estaba, mismo criterio que ya usa
     // iniciarConteoClientes()/finalizarConteoClientes() (tampoco
     // "devuelven" el canal a ningun lado en particular al terminar).
@@ -120,11 +143,37 @@ void WiFiScanner::detenerAnalizadorCanales() {
     Serial.println("Analizador de canales: detenido");
 }
 
-void WiFiScanner::getConteoCanales(uint32_t* out, int n) {
-    if (n > ANALIZADOR_CANALES) n = ANALIZADOR_CANALES;
+void WiFiScanner::setCanalAnalizador(int canal) {
+    if (canal < 1) canal = 1;
+    if (canal > 13) canal = 13;
+    if (canal == canalActualAnalizador) return;
+
+    canalActualAnalizador = canal;
+
+    // Mezclar en el mismo grafico trafico de dos canales distintos no
+    // diria nada real, asi que cambiar de canal a mano limpia el
+    // historial igual que iniciarAnalizadorCanales().
+    for (int i = 0; i < ANALIZADOR_MUESTRAS; i++) {
+        histBeacons[i] = 0;
+        histDeauths[i] = 0;
+        histProbes[i] = 0;
+    }
     portENTER_CRITICAL(&mux);
-    for (int i = 0; i < n; i++) out[i] = conteoPorCanal[i];
+    accBeacons = 0;
+    accDeauths = 0;
+    accProbes = 0;
     portEXIT_CRITICAL(&mux);
+
+    if (analizadorActivo) {
+        esp_wifi_set_channel(canalActualAnalizador, WIFI_SECOND_CHAN_NONE);
+    }
+}
+
+void WiFiScanner::getHistorialAnalizador(uint16_t* outBeacons, uint16_t* outDeauths, uint16_t* outProbes, int n) {
+    if (n > ANALIZADOR_MUESTRAS) n = ANALIZADOR_MUESTRAS;
+    memcpy(outBeacons, histBeacons, n * sizeof(uint16_t));
+    memcpy(outDeauths, histDeauths, n * sizeof(uint16_t));
+    memcpy(outProbes, histProbes, n * sizeof(uint16_t));
 }
 
 bool WiFiScanner::conteoEnProgreso() {
@@ -310,18 +359,26 @@ void WiFiScanner::promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t typ
         instance->empujarPCAP(frame, len);
     }
 
-    // Analizador de canales: cuenta CUALQUIER frame (no filtra por
-    // tipo/subtipo como el monitor o el PCAP de arriba - a diferencia
-    // de esos, aca interesa el volumen total de trafico de cada canal,
-    // no que clase de paquete es). pkt->rx_ctrl.channel es el canal en
-    // el que el driver realmente recibio ESTE paquete en particular,
-    // asi que no hace falta leer canalActualAnalizador aca (evita
-    // cualquier duda de sincronizacion entre esta tarea y update()).
-    if (instance->analizadorActivo) {
-        int ch = pkt->rx_ctrl.channel;
-        if (ch >= 1 && ch <= ANALIZADOR_CANALES) {
+    // Analizador de canales: clasifica cada frame del canal que se
+    // esta analizando en una de las 3 series que calca de Marauder -
+    // Beacons, Deauths (deauth+disassoc, igual que agrupa el legend
+    // real) y Probes (request+response). El chequeo de canal es por
+    // las dudas (el radio deberia estar siempre parado en
+    // canalActualAnalizador mientras esto esta activo, pero evita
+    // contar algo de otro canal en el instante exacto de un cambio).
+    if (instance->analizadorActivo && pkt->rx_ctrl.channel == instance->canalActualAnalizador &&
+        tipoFrame == 0) {
+        if (subtipoFrame == 0x08) {
             portENTER_CRITICAL(&instance->mux);
-            instance->conteoPorCanal[ch - 1]++;
+            instance->accBeacons++;
+            portEXIT_CRITICAL(&instance->mux);
+        } else if (subtipoFrame == 0x0C || subtipoFrame == 0x0A) {
+            portENTER_CRITICAL(&instance->mux);
+            instance->accDeauths++;
+            portEXIT_CRITICAL(&instance->mux);
+        } else if (subtipoFrame == 0x04 || subtipoFrame == 0x05) {
+            portENTER_CRITICAL(&instance->mux);
+            instance->accProbes++;
             portEXIT_CRITICAL(&instance->mux);
         }
     }

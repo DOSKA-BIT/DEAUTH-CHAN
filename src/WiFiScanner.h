@@ -12,16 +12,23 @@
 #define PCAP_BUFFER_SIZE 16
 #define PCAP_FRAME_MAX 128
 
-// Analizador de canales (estilo "Channel Analyzer" de Marauder): el
-// radio va saltando canal por canal (1 a 13), se queda ANALIZADOR_DWELL_MS
-// en cada uno contando CUALQUIER frame 802.11 que vea pasar (no solo
-// beacons de AP, como hace CANALES - esto es trafico real, no
-// cantidad de redes), y sigue girando la rueda mientras la pantalla
-// este abierta. Pura recepcion, igual que el resto del firmware: el
-// radio nunca transmite nada, solo escucha y cambia de canal para
-// escuchar otro pedazo del espectro.
-#define ANALIZADOR_CANALES 13
+// Analizador de canales, calcado del Sniffer/Channel Analyzer real de
+// Marauder (no el grafico de barras por canal de la primera version
+// de esto - el usuario mando una foto de la pantalla real y pidio
+// calcarla): se elige UN canal a mano (no hay rueda automatica) y se
+// grafica en el TIEMPO, separados por tipo, los frames que van
+// pasando - Beacons, Deauths (deauth+disassoc juntos, igual que hace
+// el legend de Marauder) y Probes (request+response juntos). Pura
+// recepcion, igual que el resto del firmware: el radio nunca
+// transmite nada, solo escucha y el touch solo cambia a QUE canal
+// escucha y como se dibuja el grafico (escala), nunca que transmite.
+//
+// ANALIZADOR_DWELL_MS es cada cuanto se toma una "muestra" (se
+// congela el conteo acumulado desde la muestra anterior y se empuja
+// al historial, ver update()); ANALIZADOR_MUESTRAS es cuantas
+// muestras entran en el historial circular que se grafica.
 #define ANALIZADOR_DWELL_MS 300
+#define ANALIZADOR_MUESTRAS 48
 
 // Copia cruda de UN frame de management (beacon, probe req/resp,
 // deauth o disassoc - ver el filtro en promiscuousCallback()) para
@@ -126,18 +133,29 @@ public:
 
     // Analizador de canales (ver el comentario largo de
     // ANALIZADOR_DWELL_MS mas arriba). iniciarAnalizadorCanales()
-    // reinicia los contadores y pone el radio a girar desde el canal
-    // 1; detenerAnalizadorCanales() solo baja la bandera (el radio se
-    // queda parado en el ultimo canal en el que estaba, igual que ya
-    // hace iniciarConteoClientes() al terminar - no hace falta
-    // "devolverlo" a ningun lado en particular). update() (ya se
-    // llama en cada vuelta del loop(), ver main.cpp) es quien de
-    // verdad hace avanzar la rueda de canales cada ANALIZADOR_DWELL_MS.
+    // limpia el historial y pone el radio en canalActualAnalizador;
+    // detenerAnalizadorCanales() solo baja la bandera (el radio se
+    // queda parado en ese mismo canal, igual que ya hace
+    // iniciarConteoClientes() al terminar - no hace falta "devolverlo"
+    // a ningun lado en particular). setCanalAnalizador() es el +/- de
+    // "Channel" de la pantalla: cambia a que canal escucha el radio Y
+    // limpia el historial (mezclar trafico de dos canales distintos
+    // en el mismo grafico no diria nada real). update() (ya se llama
+    // en cada vuelta del loop(), ver main.cpp) es quien de verdad va
+    // tomando una muestra nueva cada ANALIZADOR_DWELL_MS.
     void iniciarAnalizadorCanales();
     void detenerAnalizadorCanales();
+    void setCanalAnalizador(int canal);
     bool analizadorEstaActivo() const { return analizadorActivo; }
     int getCanalActualAnalizador() const { return canalActualAnalizador; }
-    void getConteoCanales(uint32_t* out, int n);
+
+    // Copia el historial de las 3 series a los 3 buffers que pasa
+    // quien llama (deben tener lugar para "n" elementos cada uno, n
+    // <= ANALIZADOR_MUESTRAS). Sin mux: tanto update() como esto se
+    // llaman siempre desde loop() (la tarea principal), nunca desde el
+    // callback de WiFi - ver el comentario largo junto a los arrays
+    // mas abajo.
+    void getHistorialAnalizador(uint16_t* outBeacons, uint16_t* outDeauths, uint16_t* outProbes, int n);
 
 private:
     static void promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type);
@@ -212,17 +230,29 @@ private:
     // tarea del driver WiFi) - en el peor caso de carrera se cuenta o
     // se descarta UN paquete de mas justo en el instante de
     // prender/apagar, nada grave. "canalActualAnalizador" tambien
-    // queda sin mux: lo escribe update() y lo lee la pantalla para
-    // mostrar "escuchando canal X", pero ambos corren en la MISMA
-    // tarea (loop() principal, nunca desde el callback de WiFi), asi
-    // que no hay carrera posible ahi. "conteoPorCanal" SI necesita el
-    // mux (lo escribe el callback de WiFi, lo lee getConteoCanales()
-    // desde loop() - dos tareas distintas tocando el mismo array,
-    // mismo motivo que "anomalias" mas arriba).
+    // queda sin mux por el mismo motivo (un entero chico, un solo
+    // lugar lo escribe).
+    //
+    // "accBeacons/accDeauths/accProbes" SI necesitan el mux: los
+    // incrementa el callback de WiFi (uno por paquete que llega) y los
+    // lee/resetea update() desde loop() cada vez que toma una muestra
+    // nueva - dos tareas tocando los mismos enteros. En cambio los 3
+    // arrays de historial (histBeacons/histDeauths/histProbes) NO
+    // necesitan mux: una vez que update() los actualiza (corriendo en
+    // loop(), nunca en el callback), lo unico que los lee es
+    // getHistorialAnalizador(), tambien desde loop() - misma tarea de
+    // punta a punta.
     bool analizadorActivo = false;
-    int canalActualAnalizador = 1;
-    unsigned long analizadorUltimoCambio = 0;
-    uint32_t conteoPorCanal[ANALIZADOR_CANALES] = {0};
+    int canalActualAnalizador = 6; // arranca en un canal tipico, se puede cambiar con el +/- de la pantalla
+    unsigned long analizadorUltimoMuestreo = 0;
+
+    uint16_t accBeacons = 0;
+    uint16_t accDeauths = 0;
+    uint16_t accProbes = 0;
+
+    uint16_t histBeacons[ANALIZADOR_MUESTRAS] = {0};
+    uint16_t histDeauths[ANALIZADOR_MUESTRAS] = {0};
+    uint16_t histProbes[ANALIZADOR_MUESTRAS] = {0};
 
     static WiFiScanner* instance;
 };
