@@ -32,6 +32,7 @@
 #include "Wardriving.h"
 #include "Learning.h"
 #include "EventLog.h"
+#include "Settings.h"
 #include "Theme.h"
 #include "Iconos.h"
 
@@ -54,6 +55,7 @@ extern GPSModule gps;
 extern Wardriving wardriver;
 extern Learning aprendizaje;
 extern EventLog eventos;
+extern Settings ajustes;
 
 // ---- Estado del ultimo escaneo WiFi ----
 extern RedInfo redes[MAX_REDES_ESCANEO];
@@ -219,6 +221,12 @@ void dibujarPantallaRadar();
 // ---- Pantalla de la categoria AJUSTES (ScreenAjustes.cpp) ----
 void actualizarDiagnosticoHardware();
 void dibujarPantallaConfig();
+void manejarToqueConfig(int x, int y);
+// Revisa si el "armado" de Borrar redes guardadas vencio sin un
+// segundo toque de confirmacion, y si es asi lo desarma y repinta esa
+// fila sola. Se llama junto con actualizarDiagnosticoHardware() desde
+// el mismo refresco de 1s en main.cpp.
+void actualizarEstadoBorrado();
 
 // ---- Dispatcher de toque (definido en main.cpp) ----
 void manejarToque(int x, int y);

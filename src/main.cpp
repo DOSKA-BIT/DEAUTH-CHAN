@@ -35,6 +35,7 @@ GPSModule gps;
 Wardriving wardriver;
 Learning aprendizaje;
 EventLog eventos;
+Settings ajustes;
 
 RedInfo redes[MAX_REDES_ESCANEO];
 int numRedes = 0;
@@ -197,8 +198,10 @@ const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0])
 // Dispatcher de toque: primero resuelve los dos botones fijos de
 // abajo (siempre activos, en cualquier pantalla), y despues deriva a
 // la funcion de toque que corresponde segun la pantalla activa. Las
-// pantallas sin nada tocable (STATS, CONFIG, CANALES, DUPLICADOS,
-// RADAR, GAME) caen en el "default" y no hacen nada, igual que antes.
+// pantallas sin nada tocable (STATS, CANALES, DUPLICADOS, RADAR,
+// GAME) caen en el "default" y no hacen nada, igual que antes. CONFIG
+// dejo de estar en ese grupo: ahora tiene sus propios controles
+// (brillo, autosleep, borrar redes guardadas - ver ScreenAjustes.cpp).
 void manejarToque(int x, int y) {
     for (int i = 0; i < 2; i++) {
         if (x >= menuBotones[i].x && x <= menuBotones[i].x + menuBotones[i].w &&
@@ -245,6 +248,9 @@ void manejarToque(int x, int y) {
         case SCREEN_WARDRIVE:
             manejarToqueWardriving(x, y);
             break;
+        case SCREEN_CONFIG:
+            manejarToqueConfig(x, y);
+            break;
         default:
             break;
     }
@@ -255,8 +261,15 @@ void setup() {
     delay(1000);
     Serial.printf("CYD Wardriver iniciando en %s\n", BOARD_NAME);
 
-    pinMode(TFT_BL_PIN, OUTPUT);
-    digitalWrite(TFT_BL_PIN, HIGH);
+    // Backlight por PWM (antes era pinMode+digitalWrite a secas) para
+    // poder variar el brillo desde AJUSTES. ajustes.begin() va ANTES
+    // de prender el backlight para arrancar directo en el brillo que
+    // el usuario dejo guardado la ultima vez, en vez de un flash a
+    // full brillo seguido de un salto al valor guardado.
+    ajustes.begin();
+    ledcSetup(BACKLIGHT_LEDC_CHANNEL, BACKLIGHT_LEDC_FREQ_HZ, BACKLIGHT_LEDC_RES_BITS);
+    ledcAttachPin(TFT_BL_PIN, BACKLIGHT_LEDC_CHANNEL);
+    ledcWrite(BACKLIGHT_LEDC_CHANNEL, map(ajustes.getBrillo(), 0, 100, 0, 255));
 
     tft.init();
     tft.setRotation(0);
@@ -317,15 +330,18 @@ void loop() {
         pcap.writePacket(paquetePCAP.datos, paquetePCAP.len, paquetePCAP.ts_sec, paquetePCAP.ts_usec);
     }
 
-    // Modo sleep: si nadie toco la pantalla en SLEEP_TIMEOUT_MS y no
-    // hay un escaneo ni un conteo de clientes activo, apagamos el
-    // backlight. No tocamos nada de WiFi/SD/GPS -- el resto de los
-    // modulos sigue funcionando igual, lo unico que cambia es que la
-    // pantalla deja de consumir.
-    if (!escaneando && !scanner.conteoEnProgreso() && mascota.getEstado() != ESTADO_SLEEP &&
-        millis() - ultimoToque > SLEEP_TIMEOUT_MS) {
+    // Modo sleep: si nadie toco la pantalla en el tiempo elegido desde
+    // AJUSTES (0 = nunca, deshabilitado) y no hay un escaneo ni un
+    // conteo de clientes activo, apagamos el backlight. No tocamos
+    // nada de WiFi/SD/GPS -- el resto de los modulos sigue
+    // funcionando igual, lo unico que cambia es que la pantalla deja
+    // de consumir. Antes el tiempo era SLEEP_TIMEOUT_MS fijo en
+    // config.h; ahora sale de ajustes.getAutosleepMinutos().
+    unsigned long autosleepMs = (unsigned long)ajustes.getAutosleepMinutos() * 60000UL;
+    if (autosleepMs > 0 && !escaneando && !scanner.conteoEnProgreso() && mascota.getEstado() != ESTADO_SLEEP &&
+        millis() - ultimoToque > autosleepMs) {
         mascota.setEstado(ESTADO_SLEEP);
-        digitalWrite(TFT_BL_PIN, LOW);
+        ledcWrite(BACKLIGHT_LEDC_CHANNEL, 0);
         eventos.registrar("Durmiendo por inactividad", nullptr);
         #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
             // registrar() acaba de escribir en la SD, que en esta
@@ -600,6 +616,10 @@ void loop() {
                     // completa arriba (contenidoSucio); aca solo evito
                     // un segundo redibujado inmediato del mismo cuadro.
                     actualizarDiagnosticoHardware();
+                    // Mismo refresco de 1s: si "Borrar redes guardadas"
+                    // quedo armado o mostrando "listo" y se vencio el
+                    // tiempo, lo vuelve a su estado normal.
+                    actualizarEstadoBorrado();
                 }
             }
         }
@@ -667,7 +687,7 @@ void loop() {
             // dispara ademas el boton o la zona de la pantalla que
             // haya debajo del dedo, para no activar algo sin querer
             // apenas se prende de nuevo la pantalla.
-            digitalWrite(TFT_BL_PIN, HIGH);
+            ledcWrite(BACKLIGHT_LEDC_CHANNEL, map(ajustes.getBrillo(), 0, 100, 0, 255));
             mascota.setEstado(ESTADO_IDLE);
             contenidoSucio = true;
             eventos.registrar("Se desperto", nullptr);

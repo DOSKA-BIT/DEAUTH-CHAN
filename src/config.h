@@ -7,12 +7,23 @@
 #define ANIM_FRAME_MS   200
 #define SCAN_INTERVAL   5000
 
-// Si pasan 60 segundos sin ningun toque en la pantalla (y no hay un
-// escaneo en curso), la mascota se duerme y se apaga el backlight.
-// Cualquier toque la despierta. Es la unica parte de la interfaz que
-// de verdad ahorra bateria -- todo lo demas sigue prendido igual,
-// pero el backlight de estas pantallas es lo que mas consume.
-#define SLEEP_TIMEOUT_MS  60000UL
+// El tiempo de autosleep (antes un SLEEP_TIMEOUT_MS fijo de 60000UL
+// aca) ahora es elegible desde AJUSTES y se guarda en NVS - ver
+// Settings.h/.cpp. Si pasan X minutos sin ningun toque en la pantalla
+// (y no hay un escaneo en curso), la mascota se duerme y se apaga el
+// backlight. Cualquier toque la despierta. Es la unica parte de la
+// interfaz que de verdad ahorra bateria -- todo lo demas sigue
+// prendido igual, pero el backlight de estas pantallas es lo que mas
+// consume.
+
+// Backlight por PWM (antes era HIGH/LOW nomas via digitalWrite) para
+// poder variar el brillo desde AJUSTES. Canal de LEDC libre (no se usa
+// ningun otro PWM en el firmware), frecuencia tipica para backlight
+// de LCD y 8 bits de resolucion (0-255) de sobra para pasos de 10% en
+// 100 niveles.
+#define BACKLIGHT_LEDC_CHANNEL   0
+#define BACKLIGHT_LEDC_FREQ_HZ   5000
+#define BACKLIGHT_LEDC_RES_BITS  8
 
 // Medidas del "marco" de la interfaz: la franja de arriba (donde va
 // el estado de la mascota) y la barra de botones de abajo. Todo lo

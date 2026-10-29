@@ -71,6 +71,11 @@ void Learning::guardarEnSD() {
     }
 }
 
+void Learning::borrarHistorial() {
+    numStats = 0;
+    guardarEnSD();
+}
+
 void Learning::cargarDesdeSD() {
     SD.end();
     if (!SD.begin(SD_CS_PIN)) {

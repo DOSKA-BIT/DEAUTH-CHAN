@@ -226,7 +226,14 @@ ClienteInfo* WiFiScanner::getClientes(int& count) {
 }
 
 void WiFiScanner::setLED(bool state) {
-    digitalWrite(TFT_BL_PIN, state ? HIGH : LOW);
+    // Antes esto hacia digitalWrite(TFT_BL_PIN, ...) a secas. Desde
+    // que el backlight pasa por PWM (ver BACKLIGHT_LEDC_CHANNEL en
+    // config.h y setup() en main.cpp) escribirle con digitalWrite en
+    // vez de ledcWrite podria pisar la configuracion de LEDC del pin
+    // en vez de respetarla - esta funcion no se llama desde ningun
+    // lado hoy, pero la dejamos consistente con el resto del firmware
+    // por si se usa mas adelante.
+    ledcWrite(BACKLIGHT_LEDC_CHANNEL, state ? 255 : 0);
 }
 
 void WiFiScanner::registrarAnomalia(bool esDisassoc, uint8_t* origen, uint8_t* destino, int canal, int rssi) {
