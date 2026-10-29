@@ -27,6 +27,11 @@ public:
         if (dispositivo->haveName()) {
             std::string n = dispositivo->getName();
             strncpy(nombre, n.c_str(), sizeof(nombre) - 1);
+            // strncpy no garantiza el '\0' final si el nombre ocupa
+            // los 23 bytes enteros - hoy no pasa nada porque este
+            // buffer arranca en cero y nunca se reusa entre llamadas,
+            // pero lo dejamos explicito para no depender de eso.
+            nombre[sizeof(nombre) - 1] = '\0';
         }
 
         // Manufacturer Specific Data: los primeros 2 bytes son el
@@ -129,6 +134,11 @@ void BLEScanner::onDispositivoVisto(const uint8_t* mac, int rssi, const char* no
     memcpy(dispositivos[idx].mac, mac, 6);
     dispositivos[idx].rssi = rssi;
     strncpy(dispositivos[idx].nombre, nombre, sizeof(dispositivos[idx].nombre) - 1);
+    // Mismo motivo que en RadarCallbacks::onResult(): este slot es
+    // persistente (se reusa dispositivo tras dispositivo cuando el
+    // array se llena), asi que aca si vale la pena el explicito en
+    // vez de confiar en que quedo en cero de una vez anterior.
+    dispositivos[idx].nombre[sizeof(dispositivos[idx].nombre) - 1] = '\0';
     dispositivos[idx].companyId = companyId;
     dispositivos[idx].esFindMyApple = dispositivos[idx].esFindMyApple || esFindMyApple;
     dispositivos[idx].ultimaVez = millis();

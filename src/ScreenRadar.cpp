@@ -68,11 +68,29 @@ void dibujarPantallaRadar() {
     int numDisp = 0;
     DispositivoBLE* dispositivos = radar.getDispositivos(numDisp);
     unsigned long ahora = millis();
-    int rssiMasFuerte = -999;
+
+    // Cuantos de los que hay en memoria se dibujan DE VERDAD esta
+    // vuelta (pasaron el filtro de 30s) y si alguno de ESOS es Find My
+    // - bug real que encontre repasando este archivo (no reportado):
+    // antes el pie de pagina usaba "numDisp" (el total guardado, que
+    // puede incluir dispositivos que hace rato no se escuchan) para
+    // decir "X cerca", mientras que el radar solo pintaba los puntos
+    // que pasaban el filtro de 30s - con la radio llena de
+    // dispositivos viejos, el numero del pie no coincidia con los
+    // puntos que se veian en pantalla. Y la advertencia de Find My
+    // usaba el contador HISTORICO de toda la sesion (totalFindMy,
+    // que una vez que sube ya no baja nunca), asi que una vez que
+    // aparecia UN dispositivo asi, el pie se quedaba mostrando esa
+    // advertencia para siempre, aunque ese dispositivo ya no se
+    // escuche mas y no haya ningun punto rojo en pantalla.
+    int numVisibles = 0;
+    bool hayFindMyVisible = false;
 
     for (int i = 0; i < numDisp; i++) {
         DispositivoBLE& d = dispositivos[i];
         if (ahora - d.ultimaVez > 30000) continue; // mas de 30s sin escucharlo: no lo pintamos mas
+        numVisibles++;
+        if (d.esFindMyApple) hayFindMyVisible = true;
 
         // RSSI tipico de BLE anda entre -30 (pegado) y -95 (al limite
         // del alcance) - fuera de ese rango lo recortamos para que un
@@ -92,20 +110,15 @@ void dibujarPantallaRadar() {
         if (d.esFindMyApple) {
             tft.drawCircle(x, y, 6, COLOR_DANGER); // aro extra para que resalte entre los demas
         }
-
-        if (rssi > rssiMasFuerte) rssiMasFuerte = rssi;
     }
 
-    unsigned long totalVistos = 0, totalFindMy = 0;
-    radar.getStats(totalVistos, totalFindMy);
-
     char pie[44];
-    if (numDisp == 0) {
+    if (numVisibles == 0) {
         snprintf(pie, sizeof(pie), "Buscando...");
-    } else if (totalFindMy > 0) {
+    } else if (hayFindMyVisible) {
         snprintf(pie, sizeof(pie), "Rojo = red Find My (no es 100%% un AirTag)");
     } else {
-        snprintf(pie, sizeof(pie), "%d cerca - centro = senial mas fuerte", numDisp);
+        snprintf(pie, sizeof(pie), "%d cerca - centro = senial mas fuerte", numVisibles);
     }
     dibujarPieAyuda(pie);
 }
