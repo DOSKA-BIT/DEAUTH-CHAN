@@ -34,6 +34,7 @@
 #include "EventLog.h"
 #include "Theme.h"
 #include "Iconos.h"
+#include "Deauther.h"
 
 // ---- Objetos globales (definidos en main.cpp) ----
 extern TFT_eSPI tft;
