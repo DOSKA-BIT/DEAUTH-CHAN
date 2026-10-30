@@ -10,23 +10,10 @@
 #define CONTEO_CLIENTES_MS 3000
 #define MAX_ANOMALIAS_RAM 8
 #define PCAP_BUFFER_SIZE 16
-#define PCAP_FRAME_MAX 128
+#define PCAP_FRAME_MAX 300
+#define EAPOL_BUFFER_SIZE 8
+#define EAPOL_FRAME_MAX 256
 
-// Analizador de canales, calcado del Sniffer/Channel Analyzer real de
-// Marauder (no el grafico de barras por canal de la primera version
-// de esto - el usuario mando una foto de la pantalla real y pidio
-// calcarla): se elige UN canal a mano (no hay rueda automatica) y se
-// grafica en el TIEMPO, separados por tipo, los frames que van
-// pasando - Beacons, Deauths (deauth+disassoc juntos, igual que hace
-// el legend de Marauder) y Probes (request+response juntos). Pura
-// recepcion, igual que el resto del firmware: el radio nunca
-// transmite nada, solo escucha y el touch solo cambia a QUE canal
-// escucha y como se dibuja el grafico (escala), nunca que transmite.
-//
-// ANALIZADOR_DWELL_MS es cada cuanto se toma una "muestra" (se
-// congela el conteo acumulado desde la muestra anterior y se empuja
-// al historial, ver update()); ANALIZADOR_MUESTRAS es cuantas
-// muestras entran en el historial circular que se grafica.
 #define ANALIZADOR_DWELL_MS 300
 #define ANALIZADOR_MUESTRAS 48
 
@@ -34,10 +21,7 @@
 // deauth o disassoc - ver el filtro en promiscuousCallback()) para
 // pasarla de la tarea del driver WiFi al loop() principal, que es
 // quien de verdad la escribe a la SD via PCAPWriter. Si el frame es
-// mas largo que PCAP_FRAME_MAX se trunca (quedan intactos el header
-// 802.11 y el SSID/parametros del principio, que es lo que importa
-// para abrir el pcap en Wireshark - el resto de un beacon largo son
-// tags opcionales que no hacen falta para esto).
+// mas largo que PCAP_FRAME_MAX se trunca.
 struct PaqueteCrudoWiFi {
     uint8_t datos[PCAP_FRAME_MAX];
     uint16_t len;
@@ -45,26 +29,28 @@ struct PaqueteCrudoWiFi {
     uint32_t ts_usec;
 };
 
-// Un frame de deauth o disassoc suelto es normal (un router dando de
-// baja a un cliente que se fue, por ejemplo). Esto no decide si un
-// evento puntual es un ataque - eso hace falta mirarlo en contexto,
-// no paquete por paquete. Lo que hace es dejar registrado cada uno
-// para que la persona pueda notar una rafaga (muchos en pocos
-// segundos = sospechoso) en vez de uno aislado cada tanto (normal).
-// Pura recepcion: en ningun lado de este archivo, ni de todo el
-// proyecto, se arma o se transmite un frame de este tipo.
-struct AnomaliaWiFi {
-    unsigned long momento;  // millis() de cuando se vio
-    uint8_t origen[6];      // addr2: quien dice mandar el frame
-    uint8_t destino[6];     // addr1: a quien se lo manda (o broadcast)
-    int canal;
-    int rssi;
-    bool esDisassoc;        // false = deauth (subtipo 0x0C), true = disassoc (0x0A)
+// Copia cruda de UN frame EAPOL (los 4 mensajes del handshake) para
+// pasarla del callback de WiFi a loop(), que es quien la procesa y
+// escribe. Mismo patron que PaqueteCrudoWiFi, buffer aparte para no
+// mezclar con el PCAP de management. Lleva bssid/stmac ya extraidos
+// porque el procesamiento del par M1/M2 los necesita y no conviene
+// reparsearlos despues.
+struct PaqueteEAPOL {
+    uint8_t datos[EAPOL_FRAME_MAX];
+    uint16_t len;
+    uint8_t bssid[6];
+    uint8_t stmac[6];
 };
 
-// Info de un dispositivo visto asociado a un BSSID durante el conteo
-// pasivo. No hacemos nada con esto mas que mostrarlo en pantalla y
-// guardarlo en el log de wardriving - es telemetria, no un blanco.
+struct AnomaliaWiFi {
+    unsigned long momento;
+    uint8_t origen[6];
+    uint8_t destino[6];
+    int canal;
+    int rssi;
+    bool esDisassoc;
+};
+
 struct ClienteInfo {
     uint8_t mac[6];
     int rssi;
@@ -82,19 +68,6 @@ public:
     bool isScanDone();
     void getScanResults(RedInfo* resultados, int maxRedes, int& encontradas);
 
-    // Cuenta cuantos dispositivos distintos se escuchan hablando con un
-    // BSSID puntual. Es pura recepcion (modo promiscuo), en ningun
-    // momento se transmite nada.
-    //
-    // Antes esto era una sola funcion (contarClientes) que se quedaba
-    // 3 segundos enteros en un "while + delay(10)" bloqueando TODO el
-    // firmware mientras tanto - ni el touch, ni la mascota, ni el
-    // escaneo normal respondian en ese rato. Nunca llego a usarse
-    // desde ningun boton por esa misma razon. Ahora son 3 pasos no
-    // bloqueantes: iniciarConteoClientes() arranca y vuelve al toque,
-    // update() hay que llamarlo en cada vuelta del loop() (corta solo
-    // a los 3 segundos), y conteoEnProgreso()/tiempoRestanteConteo()
-    // son para que la pantalla pueda mostrar un "Escuchando... 2s".
     void iniciarConteoClientes(const uint8_t* bssid, int canal);
     void update();
     bool conteoEnProgreso();
@@ -103,58 +76,31 @@ public:
 
     void setLED(bool state);
 
-    // Monitor pasivo de deauth/disassoc: corre solo, todo el tiempo
-    // que el radio esta en modo promiscuo (o sea, casi siempre salvo
-    // el ratito de un scan activo), sin que haga falta prender nada
-    // a mano. getAnomaliasStats da los totales acumulados desde el
-    // arranque, getAnomalias da los ultimos vistos para listarlos.
     void getAnomaliasStats(unsigned long& deauth, unsigned long& disassoc);
     AnomaliaWiFi* getAnomalias(int& count);
 
-    // Captura cruda para PCAP (beacons, probe req/resp, deauth y
-    // disassoc - frames de management, nada de datos ni EAPOL/
-    // handshakes). Apagada por defecto: activarPCAP(true) la prende,
-    // pero quien de verdad escribe a la SD es main.cpp (loop()), no
-    // este archivo - ver el comentario largo de pcapBuffer mas abajo
-    // de por que escribir a la SD desde ACA seria peligroso.
-    //
-    // pcapActivo es el UNICO campo de esta clase que se lee/escribe
-    // SIN el mux (a proposito, a diferencia de todo lo demas de aca
-    // abajo): es un simple bool, un solo lugar lo escribe (el toque en
-    // Monitor, via esta funcion) y un solo lugar lo lee
-    // (promiscuousCallback), y en el peor caso de carrera se captura o
-    // se descarta UN frame de mas justo en el instante del toque - no
-    // hay forma de que quede un valor "a medio escribir" como si
-    // pasaria con un struct de varios campos.
     void activarPCAP(bool activo) { pcapActivo = activo; }
     bool pcapEstaActivo() const { return pcapActivo; }
     unsigned long getPCAPCapturados() const { return pcapCapturados; }
     bool sacarPaquetePCAP(PaqueteCrudoWiFi& out);
 
-    // Analizador de canales (ver el comentario largo de
-    // ANALIZADOR_DWELL_MS mas arriba). iniciarAnalizadorCanales()
-    // limpia el historial y pone el radio en canalActualAnalizador;
-    // detenerAnalizadorCanales() solo baja la bandera (el radio se
-    // queda parado en ese mismo canal, igual que ya hace
-    // iniciarConteoClientes() al terminar - no hace falta "devolverlo"
-    // a ningun lado en particular). setCanalAnalizador() es el +/- de
-    // "Channel" de la pantalla: cambia a que canal escucha el radio Y
-    // limpia el historial (mezclar trafico de dos canales distintos
-    // en el mismo grafico no diria nada real). update() (ya se llama
-    // en cada vuelta del loop(), ver main.cpp) es quien de verdad va
-    // tomando una muestra nueva cada ANALIZADOR_DWELL_MS.
+    // Deteccion pasiva de EAPOL (4-way handshake). Corre siempre que
+    // el radio este promiscuo, no se prende desde pantalla. No
+    // transmite. El par M1/M2 se arma en loop() (procesarEAPOL), no
+    // aca. eapolActivo es bool simple sin mux, mismo criterio que
+    // pcapActivo: un solo lugar lo escribe, un solo lugar lo lee.
+    void activarEAPOL(bool activo) { eapolActivo = activo; }
+    bool eapolEstaActivo() const { return eapolActivo; }
+    unsigned long getEAPOLCapturados() const { return eapolCapturados; }
+    unsigned long getHandshakesArmados() const { return handshakesArmados; }
+    bool sacarPaqueteEAPOL(PaqueteEAPOL& out);
+
     void iniciarAnalizadorCanales();
     void detenerAnalizadorCanales();
     void setCanalAnalizador(int canal);
     bool analizadorEstaActivo() const { return analizadorActivo; }
     int getCanalActualAnalizador() const { return canalActualAnalizador; }
 
-    // Copia el historial de las 3 series a los 3 buffers que pasa
-    // quien llama (deben tener lugar para "n" elementos cada uno, n
-    // <= ANALIZADOR_MUESTRAS). Sin mux: tanto update() como esto se
-    // llaman siempre desde loop() (la tarea principal), nunca desde el
-    // callback de WiFi - ver el comentario largo junto a los arrays
-    // mas abajo.
     void getHistorialAnalizador(uint16_t* outBeacons, uint16_t* outDeauths, uint16_t* outProbes, int n);
 
 private:
@@ -162,6 +108,7 @@ private:
     void actualizarCliente(uint8_t* mac, int rssi, uint8_t* bssid, int canal);
     void registrarAnomalia(bool esDisassoc, uint8_t* origen, uint8_t* destino, int canal, int rssi);
     void empujarPCAP(const uint8_t* frame, uint16_t len);
+    void empujarEAPOL(const uint8_t* frame, uint16_t len);
 
     void finalizarConteoClientes();
 
@@ -177,73 +124,33 @@ private:
     unsigned long contadorDeauth = 0;
     unsigned long contadorDisassoc = 0;
 
-    // Copias "congeladas" que devuelven getAnomalias()/getClientes(),
-    // tomadas bajo lock - ver el comentario largo en el .cpp (encima
-    // de "mux") de por que hace falta esto y no alcanza con devolver
-    // un puntero a clientes[]/anomalias[] directamente.
     AnomaliaWiFi anomaliasSnapshot[MAX_ANOMALIAS_RAM];
     int numAnomaliasSnapshot = 0;
     ClienteInfo clientesSnapshot[MAX_CLIENTES];
     int numClientesSnapshot = 0;
 
-    // Protege todo lo de arriba (clientes/numClientes/anomalias/
-    // contadores/escuchandoClientes): promiscuousCallback() corre en
-    // la tarea interna del driver WiFi, en paralelo con loop() - sin
-    // esto, una pantalla podria leer un MAC o un contador a medio
-    // escribir justo cuando llega un paquete.
     portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
-    // Buffer circular chico para la captura cruda de PCAP.
-    // empujarPCAP() (llamado desde promiscuousCallback(), tarea del
-    // driver WiFi) escribe en pcapEscribirIdx bajo el mux de arriba;
-    // sacarPaquetePCAP() (llamado desde loop(), tarea principal) lee
-    // de pcapLeerIdx, tambien bajo el mux. Esto es justo el mismo
-    // patron "snapshot bajo lock" que ya usan getClientes()/
-    // getAnomalias() mas arriba, nada mas que en vez de copiar TODO el
-    // array de una, como son muchos paquetes chiquitos por segundo,
-    // se van sacando de a uno.
-    //
-    // El motivo de que este buffer exista: escribir a la SD
-    // DIRECTAMENTE desde promiscuousCallback() (la tarea del driver
-    // WiFi) podria chocar con una escritura a la SD que este haciendo
-    // el loop() principal en simultaneo (wardriving, eventos,
-    // aprendizaje) - dos tareas distintas escribiendole a la misma
-    // tarjeta SPI al mismo tiempo es tierra de corrupcion de
-    // filesystem, no solo de un dato mal leido. Por eso
-    // promiscuousCallback() solo copia bytes a RAM (rapido, no toca
-    // SPI), y es loop() el que drena este buffer y llama a
-    // PCAPWriter::writePacket() de a un paquete por vuelta, en el
-    // mismo lugar (la tarea principal) donde ya se hacen todas las
-    // demas escrituras a la SD del firmware.
     PaqueteCrudoWiFi pcapBuffer[PCAP_BUFFER_SIZE];
     int pcapEscribirIdx = 0;
     int pcapLeerIdx = 0;
     int pcapPendientes = 0;
     bool pcapActivo = false;
-    unsigned long pcapCapturados = 0; // total historico, para mostrar en pantalla
+    unsigned long pcapCapturados = 0;
 
-    // Analizador de canales. "analizadorActivo" es, igual que
-    // "pcapActivo" mas arriba, el UNICO lugar donde se lee/escribe sin
-    // el mux a proposito: es un simple bool, lo escribe un solo lugar
-    // (iniciarAnalizadorCanales()/detenerAnalizadorCanales(), desde
-    // loop()) y lo lee un solo lugar (promiscuousCallback(), desde la
-    // tarea del driver WiFi) - en el peor caso de carrera se cuenta o
-    // se descarta UN paquete de mas justo en el instante de
-    // prender/apagar, nada grave. "canalActualAnalizador" tambien
-    // queda sin mux por el mismo motivo (un entero chico, un solo
-    // lugar lo escribe).
-    //
-    // "accBeacons/accDeauths/accProbes" SI necesitan el mux: los
-    // incrementa el callback de WiFi (uno por paquete que llega) y los
-    // lee/resetea update() desde loop() cada vez que toma una muestra
-    // nueva - dos tareas tocando los mismos enteros. En cambio los 3
-    // arrays de historial (histBeacons/histDeauths/histProbes) NO
-    // necesitan mux: una vez que update() los actualiza (corriendo en
-    // loop(), nunca en el callback), lo unico que los lee es
-    // getHistorialAnalizador(), tambien desde loop() - misma tarea de
-    // punta a punta.
+    // Buffer circular de EAPOL, mismo patron exacto que pcapBuffer:
+    // el callback solo copia bytes a RAM bajo el mux, loop() drena de
+    // a uno y procesa fuera del contexto de radio.
+    PaqueteEAPOL eapolBuffer[EAPOL_BUFFER_SIZE];
+    int eapolEscribirIdx = 0;
+    int eapolLeerIdx = 0;
+    int eapolPendientes = 0;
+    bool eapolActivo = false;
+    unsigned long eapolCapturados = 0;
+    unsigned long handshakesArmados = 0;
+
     bool analizadorActivo = false;
-    int canalActualAnalizador = 6; // arranca en un canal tipico, se puede cambiar con el +/- de la pantalla
+    int canalActualAnalizador = 6;
     unsigned long analizadorUltimoMuestreo = 0;
 
     uint16_t accBeacons = 0;
