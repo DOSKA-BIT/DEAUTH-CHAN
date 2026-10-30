@@ -35,6 +35,7 @@ GPSModule gps;
 Wardriving wardriver;
 Learning aprendizaje;
 EventLog eventos;
+Deauther deauther;
 
 RedInfo redes[MAX_REDES_ESCANEO];
 int numRedes = 0;
@@ -109,6 +110,14 @@ int ultimoExportResumen = -2;
 // normal.
 int redIndiceConteo = -1;
 
+// Indice (dentro de redes[]) de la red elegida como blanco en la
+// pantalla DEAUTH. -1 = no hay ninguna elegida todavia, y sin elegir
+// no se puede arrancar el ataque (no hay a quien apuntarle). Se
+// mantiene aparte de redIndiceConteo a proposito: son dos cosas
+// distintas, elegir un blanco para atacar no tiene por que pisar el
+// resultado de un conteo que estas mirando en otra pantalla.
+int redIndiceDeauth = -1;
+
 // Momento del ultimo toque real en la pantalla (no cuenta el toque
 // que la despierta, ver mas abajo). Arranca en 0 y se pisa recien en
 // setup(), asi el reloj de inactividad no empieza a correr hasta que
@@ -180,6 +189,12 @@ Herramienta herramientas[] = {
     {"STATS",     "Memoria de redes ya vistas",       CAT_WIFI,       SCREEN_STATS,     COLOR_CAT_YELLOW, ICONO_STATS,     0, 0},
     {"CONOCIDAS", "Redes guardadas, por senial",      CAT_WIFI,       SCREEN_CONOCIDAS, COLOR_CAT_WHITE,  ICONO_CONOCIDAS, 0, 0},
     {"MONITOR",   "Deauth/disassoc detectados",       CAT_WIFI,       SCREEN_MONITOR,   COLOR_CAT_RED,    ICONO_MONITOR,   0, 0},
+    // DEAUTH es la unica herramienta del firmware que TRANSMITE (ver
+    // Deauther.h). Va pegada a MONITOR a proposito: una detecta
+    // deauths, la otra los genera, tiene sentido tenerlas juntas.
+    // Reusa ICONO_MONITOR para no tener que sumar un bitmap nuevo por
+    // una sola fila.
+    {"DEAUTH",    "Tumbar clientes de una red",       CAT_WIFI,       SCREEN_DEAUTH,    COLOR_CAT_RED,    ICONO_MONITOR,   0, 0},
     {"EVENTOS",   "Historial de esta sesion",         CAT_WIFI,       SCREEN_EVENTOS,   COLOR_CAT_BLUE,   ICONO_EVENTOS,   0, 0},
     {"CANALES",   "Uso del espectro, canal por canal", CAT_WIFI,       SCREEN_CANALES,   COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
     {"ANALIZADOR","Trafico en vivo, canal por canal", CAT_WIFI,       SCREEN_ANALIZADOR,COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
@@ -239,6 +254,7 @@ void manejarToque(int x, int y) {
         case SCREEN_CONOCIDAS:
         case SCREEN_EVENTOS:
         case SCREEN_MONITOR:
+        case SCREEN_DEAUTH:
         case SCREEN_ANALIZADOR:
             manejarToqueWifi(pantallaActual, x, y);
             break;
@@ -283,6 +299,10 @@ void setup() {
     radar.begin(); // RADAR: escaneo BLE pasivo, corre de fondo desde el arranque (ver BLEScanner.h)
     gps.begin();
     scanner.begin();
+    // deauther.begin() no toca el radio (ver Deauther.h): depende a
+    // proposito de que scanner.begin() ya haya dejado WIFI_MODE_STA y
+    // el modo promiscuo armados. Por eso va despues.
+    deauther.begin();
     wardriver.begin();
     aprendizaje.begin();
     eventos.begin();
@@ -305,6 +325,7 @@ void loop() {
     gps.update();
     mascota.update();
     scanner.update(); // corta solo el conteo de clientes a los 3s (ver WiFiScanner::update)
+    deauther.update(); // manda una rafaga de deauth si hay un ataque activo (ver Deauther.h)
 
     // Drena el buffer de paquetes crudos de PCAP (si hay algo activado
     // en Monitor) y recien ACA los escribe a la SD, via
@@ -425,7 +446,15 @@ void loop() {
     // el usuario tiene el control manual) y la mascota no esta
     // dormida (no tiene sentido gastar radio con la pantalla apagada
     // por inactividad).
+    //
+    // deauther.activo() y SCREEN_DEAUTH van en la condicion porque un
+    // WiFi.scanNetworks apaga el modo promiscuo y mueve el canal: con
+    // un ataque corriendo, un auto-escaneo a mitad de rafaga deja al
+    // deauther inyectando en el canal equivocado (o sin promiscuo)
+    // hasta la rafaga siguiente. Con esto el radio queda entero para
+    // el ataque mientras dura.
     if (!escaneando && !scanner.conteoEnProgreso() && !scanner.analizadorEstaActivo() &&
+        !deauther.activo() && pantallaActual != SCREEN_DEAUTH &&
         pantallaActual != SCREEN_SCAN && pantallaActual != SCREEN_ANALIZADOR &&
         mascota.getEstado() != ESTADO_SLEEP &&
         millis() - ultimoAutoScan >= AUTO_SCAN_MS) {
@@ -471,6 +500,21 @@ void loop() {
     bool cambioPantalla = (pantallaActual != pantallaAnterior);
     if (cambioPantalla) {
         contenidoSucio = true;
+
+        // Deauth, escaneo y Analizador pelean por las mismas dos cosas:
+        // el canal del radio y el modo promiscuo. Si entras a una de
+        // esas pantallas con un ataque corriendo, se corta - mejor que
+        // dejar los dos pisandose sin que se entienda por que dejo de
+        // andar.
+        if (deauther.activo() && (pantallaActual == SCREEN_SCAN || pantallaActual == SCREEN_ANALIZADOR)) {
+            deauther.detener();
+            eventos.registrar("Deauth: detenido por cambio de pantalla");
+            #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+                // registrar() escribe a la SD - mismo motivo de siempre
+                // para reclamar el bus del touch despues.
+                touchDriver.reclaimBus();
+            #endif
+        }
 
         // El Analizador de canales prende/apaga su propia rueda de
         // canales justo al entrar/salir de esta pantalla puntual (ver
@@ -565,6 +609,9 @@ void loop() {
                 case SCREEN_MONITOR:
                     dibujarPantallaMonitor();
                     break;
+                case SCREEN_DEAUTH:
+                    dibujarPantallaDeauth();
+                    break;
                 case SCREEN_CANALES:
                     dibujarPantallaCanales();
                     break;
@@ -618,6 +665,23 @@ void loop() {
                 ultimoRefrescoMonitor = ahoraMonitor;
                 if (!cambioPantalla) {
                     dibujarPantallaMonitor();
+                }
+            }
+        }
+
+        // Mismo patron que Monitor, pero a 500ms en vez de 1s porque
+        // aca los contadores de enviados/fallidos se mueven a decenas
+        // por segundo: sin esto la pantalla quedaria congelada en los
+        // ceros de la primera rafaga y no se veria que el ataque esta
+        // saliendo. Los fallidos subiendo es la señal de que el
+        // promiscuo o el canal se perdieron (ver Deauther::update()).
+        if (pantallaActual == SCREEN_DEAUTH) {
+            static unsigned long ultimoRefrescoDeauth = 0;
+            unsigned long ahoraDeauth = millis();
+            if (cambioPantalla || ahoraDeauth - ultimoRefrescoDeauth >= 500) {
+                ultimoRefrescoDeauth = ahoraDeauth;
+                if (!cambioPantalla) {
+                    dibujarPantallaDeauth();
                 }
             }
         }
