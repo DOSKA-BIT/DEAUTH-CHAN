@@ -156,11 +156,14 @@ Boton menuBotones[2];
 // estas por indice (campo "categoria"). El icono de cada categoria es
 // el de su primera herramienta (no hay un set de iconos "de
 // categoria" aparte - no hacia falta duplicar arte para esto).
+// Los campos nombre/descripcion ahora son claves de traduccion
+// (TextoId, ver Idioma.h) en vez del texto en si - ver el comentario
+// largo junto a "struct Categoria" en Globals.h.
 Categoria categorias[CANTIDAD_CATEGORIAS] = {
-    {"WIFI",       "Escaneo, stats, conocidas, monitor y eventos", COLOR_CAT_CYAN,   ICONO_ESCANEAR, 0, 0},
-    {"WARDRIVING", "Guardado de ubicacion + redes en la SD",       COLOR_CAT_VIOLET, ICONO_WARDRIVE, 0, 0},
-    {"RADAR",      "Dispositivos BLE cerca y red Find My de Apple",COLOR_CAT_GREEN,  ICONO_RADAR,    0, 0},
-    {"AJUSTES",    "Datos de la placa y el estado de la SD",       COLOR_CAT_BLUE,   ICONO_CONFIG,   0, 0},
+    {TXT_CAT_WIFI_NOMBRE,       TXT_CAT_WIFI_DESC,       COLOR_CAT_CYAN,   ICONO_ESCANEAR, 0, 0},
+    {TXT_CAT_WARDRIVING_NOMBRE, TXT_CAT_WARDRIVING_DESC, COLOR_CAT_VIOLET, ICONO_WARDRIVE, 0, 0},
+    {TXT_CAT_RADAR_NOMBRE,      TXT_CAT_RADAR_DESC,      COLOR_CAT_GREEN,  ICONO_RADAR,    0, 0},
+    {TXT_CAT_AJUSTES_NOMBRE,    TXT_CAT_AJUSTES_DESC,    COLOR_CAT_BLUE,   ICONO_CONFIG,   0, 0},
 };
 
 // Una fila por herramienta en la pantalla de Herramientas: nombre,
@@ -177,21 +180,27 @@ Categoria categorias[CANTIDAD_CATEGORIAS] = {
 // configuracion (neutro), blanco = listas simples/informativas, rojo
 // = alertas.
 Herramienta herramientas[] = {
-    {"ESCANEAR",  "Buscar redes WiFi cerca",         CAT_WIFI,       SCREEN_SCAN,      COLOR_CAT_CYAN,   ICONO_ESCANEAR,  0, 0},
-    {"STATS",     "Memoria de redes ya vistas",       CAT_WIFI,       SCREEN_STATS,     COLOR_CAT_YELLOW, ICONO_STATS,     0, 0},
-    {"CONOCIDAS", "Redes guardadas, por senial",      CAT_WIFI,       SCREEN_CONOCIDAS, COLOR_CAT_WHITE,  ICONO_CONOCIDAS, 0, 0},
-    {"MONITOR",   "Deauth/disassoc detectados",       CAT_WIFI,       SCREEN_MONITOR,   COLOR_CAT_RED,    ICONO_MONITOR,   0, 0},
-    {"EVENTOS",   "Historial de esta sesion",         CAT_WIFI,       SCREEN_EVENTOS,   COLOR_CAT_BLUE,   ICONO_EVENTOS,   0, 0},
-    {"CANALES",   "Uso del espectro, canal por canal", CAT_WIFI,       SCREEN_CANALES,   COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
-    {"ANALIZADOR","Trafico en vivo, canal por canal", CAT_WIFI,       SCREEN_ANALIZADOR,COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
-    {"DUPLICADO", "SSID repetido en el ultimo escaneo",CAT_WIFI,       SCREEN_DUPLICADOS,COLOR_CAT_RED,    ICONO_DUPLICADO, 0, 0},
+    {TXT_HERR_ESCANEAR_NOMBRE,   TXT_HERR_ESCANEAR_DESC,   CAT_WIFI,       SCREEN_SCAN,      COLOR_CAT_CYAN,   ICONO_ESCANEAR,  0, 0},
+    {TXT_HERR_STATS_NOMBRE,      TXT_HERR_STATS_DESC,      CAT_WIFI,       SCREEN_STATS,     COLOR_CAT_YELLOW, ICONO_STATS,     0, 0},
+    {TXT_HERR_CONOCIDAS_NOMBRE,  TXT_HERR_CONOCIDAS_DESC,  CAT_WIFI,       SCREEN_CONOCIDAS, COLOR_CAT_WHITE,  ICONO_CONOCIDAS, 0, 0},
+    {TXT_HERR_MONITOR_NOMBRE,    TXT_HERR_MONITOR_DESC,    CAT_WIFI,       SCREEN_MONITOR,   COLOR_CAT_RED,    ICONO_MONITOR,   0, 0},
+    {TXT_HERR_EVENTOS_NOMBRE,    TXT_HERR_EVENTOS_DESC,    CAT_WIFI,       SCREEN_EVENTOS,   COLOR_CAT_BLUE,   ICONO_EVENTOS,   0, 0},
+    {TXT_HERR_CANALES_NOMBRE,    TXT_HERR_CANALES_DESC,    CAT_WIFI,       SCREEN_CANALES,   COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
+    {TXT_HERR_ANALIZADOR_NOMBRE, TXT_HERR_ANALIZADOR_DESC, CAT_WIFI,       SCREEN_ANALIZADOR,COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
+    {TXT_HERR_DUPLICADO_NOMBRE,  TXT_HERR_DUPLICADO_DESC,  CAT_WIFI,       SCREEN_DUPLICADOS,COLOR_CAT_RED,    ICONO_DUPLICADO, 0, 0},
     // Vacio a proposito (pedido explicito del usuario): sin logica
     // adentro, nada mas el boton, el icono y una pantalla en blanco -
     // ver dibujarPantallaGame() en ScreenWifi.cpp.
-    {"GAME",      "Proximamente",                     CAT_WIFI,       SCREEN_GAME,      COLOR_CAT_WHITE,  ICONO_ESPADA,    0, 0},
-    {"WARDRIVE",  "Guardar ubicacion + redes en SD",  CAT_WARDRIVING, SCREEN_WARDRIVE,  COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0},
-    {"RADAR",     "BLE cerca + red Find My de Apple", CAT_RADAR,      SCREEN_RADAR,     COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0},
-    {"CONFIG",    "Datos de la placa y la SD",        CAT_AJUSTES,    SCREEN_CONFIG,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
+    {TXT_HERR_GAME_NOMBRE,       TXT_HERR_GAME_DESC,       CAT_WIFI,       SCREEN_GAME,      COLOR_CAT_WHITE,  ICONO_ESPADA,    0, 0},
+    {TXT_HERR_WARDRIVE_NOMBRE,   TXT_HERR_WARDRIVE_DESC,   CAT_WARDRIVING, SCREEN_WARDRIVE,  COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0},
+    {TXT_HERR_RADAR_NOMBRE,      TXT_HERR_RADAR_DESC,      CAT_RADAR,      SCREEN_RADAR,     COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0},
+    {TXT_HERR_CONFIG_NOMBRE,     TXT_HERR_CONFIG_DESC,     CAT_AJUSTES,    SCREEN_CONFIG,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
+    // Pedido del usuario: el selector de idioma vive al lado de CONFIG,
+    // dentro de la misma categoria AJUSTES (ver dibujarPantallaIdioma()/
+    // manejarToqueIdioma() en ScreenAjustes.cpp). Reusa el icono de
+    // CONFIG a proposito (mismo criterio pragmatico que ANALIZADOR
+    // reusando el icono de CANALES) en vez de dibujar uno nuevo.
+    {TXT_HERR_IDIOMA_NOMBRE,     TXT_HERR_IDIOMA_DESC,     CAT_AJUSTES,    SCREEN_IDIOMA,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
 };
 const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0]);
 
@@ -250,6 +259,9 @@ void manejarToque(int x, int y) {
             break;
         case SCREEN_CONFIG:
             manejarToqueConfig(x, y);
+            break;
+        case SCREEN_IDIOMA:
+            manejarToqueIdioma(x, y);
             break;
         default:
             break;
@@ -595,6 +607,9 @@ void loop() {
                     break;
                 case SCREEN_GAME:
                     dibujarPantallaGame();
+                    break;
+                case SCREEN_IDIOMA:
+                    dibujarPantallaIdioma();
                     break;
                 default:
                     break;

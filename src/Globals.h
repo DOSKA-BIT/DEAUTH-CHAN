@@ -33,6 +33,7 @@
 #include "Learning.h"
 #include "EventLog.h"
 #include "Settings.h"
+#include "Idioma.h"
 #include "Theme.h"
 #include "Iconos.h"
 
@@ -104,7 +105,8 @@ enum MenuScreen {
     SCREEN_ANALIZADOR,
     SCREEN_DUPLICADOS,
     SCREEN_RADAR,
-    SCREEN_GAME
+    SCREEN_GAME,
+    SCREEN_IDIOMA
 };
 extern MenuScreen pantallaActual;
 
@@ -116,9 +118,11 @@ extern MenuScreen destinoPendiente;
 extern int categoriaSeleccionada;
 
 // ---- Barra de botones fija de abajo ----
+// "label" es una clave de traduccion (TextoId, ver Idioma.h), no el
+// texto en si - se resuelve con tr() reciem en dibujarMenuBotones().
 struct Boton {
     int x, y, w, h;
-    const char* label;
+    TextoId label;
 };
 extern Boton menuBotones[2];
 void calcularLayoutMenu();
@@ -126,9 +130,14 @@ void calcularLayoutMenu();
 // ---- Categorias del submenu de Herramientas ----
 enum { CAT_WIFI, CAT_WARDRIVING, CAT_RADAR, CAT_AJUSTES, CANTIDAD_CATEGORIAS };
 
+// "nombre"/"descripcion" son claves de traduccion (TextoId, ver
+// Idioma.h), no el texto en si - cada pantalla que los dibuja los
+// resuelve con tr() en el momento (ver Menu.cpp). Asi, agregar un
+// idioma nuevo el dia de mañana no implica tocar este array ni
+// main.cpp para nada, solo las tablas de Idioma.cpp.
 struct Categoria {
-    const char* nombre;
-    const char* descripcion;
+    TextoId nombre;
+    TextoId descripcion;
     uint16_t color;
     const uint8_t* icono;
     int y, h; // se calculan en calcularLayoutCategorias()
@@ -137,8 +146,8 @@ extern Categoria categorias[CANTIDAD_CATEGORIAS];
 
 // ---- Herramientas (una fila por pantalla dentro de una categoria) ----
 struct Herramienta {
-    const char* nombre;
-    const char* descripcion;
+    TextoId nombre;        // clave de traduccion, ver el comentario de Categoria arriba
+    TextoId descripcion;   // idem
     int categoria;         // indice en categorias[] (CAT_WIFI, etc)
     MenuScreen destino;
     uint16_t color;        // color de categoria (icono + texto)
@@ -227,6 +236,11 @@ void manejarToqueConfig(int x, int y);
 // fila sola. Se llama junto con actualizarDiagnosticoHardware() desde
 // el mismo refresco de 1s en main.cpp.
 void actualizarEstadoBorrado();
+// Pantalla de seleccion de idioma (ES/EN) - ver Idioma.h. Vive en
+// ScreenAjustes.cpp porque es una herramienta mas de la categoria
+// AJUSTES, igual que CONFIG.
+void dibujarPantallaIdioma();
+void manejarToqueIdioma(int x, int y);
 
 // ---- Dispatcher de toque (definido en main.cpp) ----
 void manejarToque(int x, int y);

@@ -301,3 +301,59 @@ void manejarToqueConfig(int x, int y) {
         return;
     }
 }
+
+// ---- Pantalla IDIOMA (selector ES/EN) ----------------------------
+//
+// Layout de las 2 filas - CANTIDAD_IDIOMAS viene de Idioma.h, asi que
+// el dia que se agregue un tercer idioma esta pantalla ya lo muestra
+// solo (una fila mas), sin tocar nada aca.
+static const int Y_IDIOMA_TOP  = CONTENT_TOP + ALTO_TITULO_SECCION + 10;
+static const int ALTO_FILA_IDIOMA = 36;
+static const int GAP_FILA_IDIOMA  = 10;
+
+void dibujarPantallaIdioma() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion(tr(TXT_IDIOMA_TITULO), COLOR_CAT_BLUE, ICONO_CONFIG);
+
+    // Los nombres de cada idioma NO pasan por tr(): un selector de
+    // idioma siempre muestra cada opcion en su propio idioma (si
+    // estuviera en ingles, alguien que solo lee español no
+    // reconoceria "ESPANOL" traducido a otra cosa). Sin "ñ" a
+    // proposito, mismo motivo que el resto de los textos on-screen
+    // (fuente ASCII basica - ver el comentario en generar_caras.py).
+    static const char* NOMBRES_IDIOMA[CANTIDAD_IDIOMAS] = {"ESPANOL", "ENGLISH"};
+    IdiomaId actual = ajustes.getIdioma();
+
+    for (int i = 0; i < CANTIDAD_IDIOMAS; i++) {
+        int y = Y_IDIOMA_TOP + i * (ALTO_FILA_IDIOMA + GAP_FILA_IDIOMA);
+        bool seleccionado = (i == actual);
+        uint16_t color = seleccionado ? COLOR_ACCENT : COLOR_ACCENT_DIM;
+
+        dibujarEsquinas(10, y, TFT_PANEL_WIDTH - 20, ALTO_FILA_IDIOMA, color, 5);
+        dibujarTextoEspaciado(24, y + ALTO_FILA_IDIOMA / 2 - 3, NOMBRES_IDIOMA[i],
+                               seleccionado ? COLOR_ACCENT : COLOR_TEXT_DIM, COLOR_BG, 2);
+        if (seleccionado) {
+            dibujarTextoEspaciado(TFT_PANEL_WIDTH - 34, y + ALTO_FILA_IDIOMA / 2 - 3, "OK", COLOR_ACCENT, COLOR_BG, 1);
+        }
+    }
+
+    dibujarPieAyuda(tr(TXT_IDIOMA_PIE));
+}
+
+void manejarToqueIdioma(int x, int y) {
+    for (int i = 0; i < CANTIDAD_IDIOMAS; i++) {
+        int yFila = Y_IDIOMA_TOP + i * (ALTO_FILA_IDIOMA + GAP_FILA_IDIOMA);
+        if (y >= yFila && y <= yFila + ALTO_FILA_IDIOMA) {
+            // setIdioma() ya no hace nada si "i" es el idioma que
+            // estaba puesto (ver el chequeo adentro de Settings::
+            // setIdioma()), asi que tocar el que ya esta activo no
+            // escribe en la NVS de nuevo sin necesidad.
+            ajustes.setIdioma((IdiomaId)i);
+            // contenidoSucio (no solo redibujar esta fila) a
+            // proposito: el idioma cambia TODO lo que esta en
+            // pantalla, no solo este selector.
+            contenidoSucio = true;
+            return;
+        }
+    }
+}

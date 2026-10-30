@@ -30,6 +30,10 @@ void Settings::begin() {
 
     int guardado = prefs.getInt("autosleep", 1);
     autosleepMinutos = PRESETS_AUTOSLEEP[indicePreset(guardado)];
+
+    int idiomaGuardado = prefs.getInt("idioma", IDIOMA_ES);
+    if (idiomaGuardado < 0 || idiomaGuardado >= CANTIDAD_IDIOMAS) idiomaGuardado = IDIOMA_ES;
+    idioma = (IdiomaId)idiomaGuardado;
 }
 
 void Settings::setBrillo(int valor) {
@@ -56,4 +60,11 @@ void Settings::bajarAutosleep() {
 
 void Settings::guardarAutosleep() {
     prefs.putInt("autosleep", autosleepMinutos);
+}
+
+void Settings::setIdioma(IdiomaId valor) {
+    if (valor < 0 || valor >= CANTIDAD_IDIOMAS) return;
+    if (valor == idioma) return;
+    idioma = valor;
+    prefs.putInt("idioma", (int)idioma);
 }

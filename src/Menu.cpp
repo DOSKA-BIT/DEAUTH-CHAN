@@ -36,8 +36,8 @@ void calcularLayoutMenu() {
     int anchoBoton = TFT_PANEL_WIDTH / 2;
     int y = TFT_PANEL_HEIGHT - MENU_BAR_HEIGHT;
 
-    menuBotones[0] = {0, y, anchoBoton - 2, 34, "Mascota"};
-    menuBotones[1] = {anchoBoton, y, anchoBoton - 2, 34, "Herramientas"};
+    menuBotones[0] = {0, y, anchoBoton - 2, 34, TXT_BOTON_MASCOTA};
+    menuBotones[1] = {anchoBoton, y, anchoBoton - 2, 34, TXT_BOTON_HERRAMIENTAS};
 }
 
 // Layout del menu de categorias (SCREEN_TOOLS) - son siempre 4, fijas,
@@ -213,10 +213,11 @@ void dibujarMenuBotones() {
         // manejarToque() en main.cpp), "Herramientas" en cualquier
         // otro lado (Mascota o la lista de categorias) - mismo
         // comportamiento que tenia antes en esos dos casos.
-        const char* etiqueta = menuBotones[i].label;
+        TextoId claveEtiqueta = menuBotones[i].label;
         if (i == 1 && (pantallaActual == SCREEN_TOOLS_SUB || esPantallaHoja(pantallaActual))) {
-            etiqueta = "Atras";
+            claveEtiqueta = TXT_BOTON_ATRAS;
         }
+        const char* etiqueta = tr(claveEtiqueta);
 
         uint16_t colorTexto = activo ? COLOR_ACCENT : COLOR_TEXT_DIM;
         int anchoTexto = anchoTextoEspaciado(etiqueta);
@@ -273,7 +274,7 @@ void dibujarPieAyuda(const char* texto) {
 // manejarToqueCategorias() mas abajo.
 void dibujarPantallaCategorias() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("HERRAMIENTAS");
+    dibujarTituloSeccion(tr(TXT_TITULO_HERRAMIENTAS));
 
     for (int i = 0; i < CANTIDAD_CATEGORIAS; i++) {
         Categoria& c = categorias[i];
@@ -296,13 +297,13 @@ void dibujarPantallaCategorias() {
         int yIcono = c.y + (c.h - ICONO_ALTO) / 2;
         tft.drawBitmap(10, yIcono, c.icono, ICONO_ANCHO, ICONO_ALTO, colorFrenteFila, colorFondoFila);
 
-        dibujarTextoEspaciado(10 + ICONO_ANCHO + 8, c.y + (c.h / 2) - 3, c.nombre, colorFrenteFila, colorFondoFila, 2);
+        dibujarTextoEspaciado(10 + ICONO_ANCHO + 8, c.y + (c.h / 2) - 3, tr(c.nombre), colorFrenteFila, colorFondoFila, 2);
     }
 
     if (filaDestellada >= 0 && filaDestellada < CANTIDAD_CATEGORIAS) {
-        dibujarPieAyuda(categorias[filaDestellada].descripcion);
+        dibujarPieAyuda(tr(categorias[filaDestellada].descripcion));
     } else {
-        dibujarPieAyuda("Toca una categoria para ver sus herramientas");
+        dibujarPieAyuda(tr(TXT_PIE_TOCA_CATEGORIA));
     }
 }
 
@@ -312,7 +313,7 @@ void dibujarPantallaCategorias() {
 void dibujarPantallaHerramientasSub() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
     Categoria& cat = categorias[categoriaSeleccionada];
-    dibujarTituloSeccion(cat.nombre, cat.color, cat.icono);
+    dibujarTituloSeccion(tr(cat.nombre), cat.color, cat.icono);
 
     int indices[CANTIDAD_HERRAMIENTAS];
     int cantidad = layoutHerramientasDeCategoria(categoriaSeleccionada, indices);
@@ -336,13 +337,13 @@ void dibujarPantallaHerramientasSub() {
         int yIcono = h.y + (h.h - ICONO_ALTO) / 2;
         tft.drawBitmap(10, yIcono, h.icono, ICONO_ANCHO, ICONO_ALTO, colorFrenteFila, colorFondoFila);
 
-        dibujarTextoEspaciado(10 + ICONO_ANCHO + 8, h.y + (h.h / 2) - 3, h.nombre, colorFrenteFila, colorFondoFila, 2);
+        dibujarTextoEspaciado(10 + ICONO_ANCHO + 8, h.y + (h.h / 2) - 3, tr(h.nombre), colorFrenteFila, colorFondoFila, 2);
     }
 
     if (filaDestellada >= 0 && filaDestellada < cantidad) {
-        dibujarPieAyuda(herramientas[indices[filaDestellada]].descripcion);
+        dibujarPieAyuda(tr(herramientas[indices[filaDestellada]].descripcion));
     } else {
-        dibujarPieAyuda("Toca una herramienta para entrar");
+        dibujarPieAyuda(tr(TXT_PIE_TOCA_HERRAMIENTA));
     }
 }
 
