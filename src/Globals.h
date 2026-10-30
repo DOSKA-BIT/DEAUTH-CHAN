@@ -32,6 +32,7 @@
 #include "Wardriving.h"
 #include "Learning.h"
 #include "EventLog.h"
+#include "Settings.h"
 #include "Theme.h"
 #include "Iconos.h"
 #include "Deauther.h"
@@ -55,6 +56,8 @@ extern GPSModule gps;
 extern Wardriving wardriver;
 extern Learning aprendizaje;
 extern EventLog eventos;
+extern Settings ajustes;
+extern Deauther deauther;
 
 // ---- Estado del ultimo escaneo WiFi ----
 extern RedInfo redes[MAX_REDES_ESCANEO];
@@ -83,6 +86,10 @@ extern int ultimoExportResumen;
 // ---- Conteo de clientes en curso (pantalla ESCANEAR) ----
 extern int redIndiceConteo;
 
+// ---- Indice en redes[] de la red elegida como blanco en DEAUTH. -1
+// = sin elegir (no se puede arrancar el ataque asi). ----
+extern int redIndiceDeauth;
+
 // ---- Inactividad / redibujado ----
 extern unsigned long ultimoToque;
 extern bool contenidoSucio;
@@ -99,6 +106,7 @@ enum MenuScreen {
     SCREEN_CONOCIDAS,
     SCREEN_EVENTOS,
     SCREEN_MONITOR,
+    SCREEN_DEAUTH,
     SCREEN_CANALES,
     SCREEN_ANALIZADOR,
     SCREEN_DUPLICADOS,
@@ -153,6 +161,7 @@ extern const int ALTO_TITULO_SECCION;
 extern const int ALTO_PIE_AYUDA;
 extern const int ALTO_BOTON_EXPORTAR;
 extern const int ALTO_BLOQUE_MONITOR;
+extern const int ALTO_BLOQUE_DEAUTH;
 extern const int ALTO_CONTROLES_ANALIZADOR;
 
 // ---- Analizador de canales: controles de pantalla (ScreenWifi.cpp) ----
@@ -202,6 +211,7 @@ const char* nombreOrdenConocidas(int orden);
 void dibujarPantallaConocidas();
 void dibujarPantallaEventos();
 void dibujarPantallaMonitor();
+void dibujarPantallaDeauth();
 void dibujarPantallaCanales();
 void dibujarPantallaAnalizador();
 void dibujarPantallaDuplicados();
@@ -220,6 +230,12 @@ void dibujarPantallaRadar();
 // ---- Pantalla de la categoria AJUSTES (ScreenAjustes.cpp) ----
 void actualizarDiagnosticoHardware();
 void dibujarPantallaConfig();
+void manejarToqueConfig(int x, int y);
+// Revisa si el "armado" de Borrar redes guardadas vencio sin un
+// segundo toque de confirmacion, y si es asi lo desarma y repinta esa
+// fila sola. Se llama junto con actualizarDiagnosticoHardware() desde
+// el mismo refresco de 1s en main.cpp.
+void actualizarEstadoBorrado();
 
 // ---- Dispatcher de toque (definido en main.cpp) ----
 void manejarToque(int x, int y);
