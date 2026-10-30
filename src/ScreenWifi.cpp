@@ -1,9 +1,13 @@
 // Todas las pantallas de la categoria WIFI (ESCANEAR, STATS,
-// CONOCIDAS, MONITOR, EVENTOS, CANALES, DUPLICADO y el placeholder
-// GAME) + sus toques asociados. Movido tal cual desde main.cpp, sin
-// cambiar ningun comportamiento - cada funcion es copia exacta de la
-// que tenia antes, solo que ahora vive en su propio archivo por
-// categoria.
+// CONOCIDAS, MONITOR, DEAUTH, EVENTOS, CANALES, DUPLICADO y el
+// placeholder GAME) + sus toques asociados. Movido tal cual desde
+// main.cpp, sin cambiar ningun comportamiento - cada funcion es copia
+// exacta de la que tenia antes, solo que ahora vive en su propio
+// archivo por categoria.
+//
+// DEAUTH es la unica pantalla de este archivo (y del firmware) que
+// transmite: las demas solo escuchan. La logica de inyeccion vive en
+// Deauther.h/.cpp; aca solo esta la interfaz y el disparo.
 #include <strings.h> // strcasecmp(), usado para ordenar CONOCIDAS por nombre
 #include "Globals.h"
 
@@ -428,6 +432,127 @@ void dibujarPantallaMonitor() {
     }
 }
 
+// Alto del bloque fijo de arriba de DEAUTH (objetivo elegido, canal,
+// contadores y el boton INICIAR/DETENER), antes de que arranque la
+// lista de redes - dibujarPantallaDeauth() y manejarToqueWifi(), caso
+// SCREEN_DEAUTH, comparten este mismo numero para que el toque
+// siempre coincida con lo que se ve dibujado, mismo criterio que
+// ALTO_BLOQUE_MONITOR.
+const int ALTO_BLOQUE_DEAUTH = 70;
+
+// DEAUTH: la unica pantalla del firmware que TRANSMITE. Se elige una
+// red del ultimo escaneo (tocandola en la lista de abajo) y se
+// arranca el ataque contra ella; el canal sale de la propia red
+// elegida, no se elige a mano. Todo lo que hay aca es interfaz - la
+// trama, el canal y el ritmo los maneja Deauther.h/.cpp.
+//
+// Lo que se ve en el bloque de arriba es diagnostico real, no
+// decoracion: "Env" son las tramas que el driver acepto y "F" las que
+// rechazo. Si "F" sube mientras "Env" se queda quieto, el radio
+// perdio el promiscuo o el canal (ver Deauther::update()) - con
+// WiFiScanner::begin() armando el promiscuo y main.cpp bloqueando el
+// auto-escaneo mientras esto corre, en la practica no deberia pasar.
+void dibujarPantallaDeauth() {
+    tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
+    dibujarTituloSeccion("DEAUTH", COLOR_CAT_RED, ICONO_MONITOR);
+    int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+
+    bool hayObjetivo = (redIndiceDeauth >= 0 && redIndiceDeauth < numRedes);
+    bool atacando = deauther.activo();
+
+    // El SSID se recorta a lo que entra despues del prefijo "Objetivo:
+    // " en 240px (fuente 1 son 6px por caracter, el prefijo se come
+    // 60): sin esto un SSID largo empuja el resto fuera de pantalla.
+    char ssidCorto[27];
+    if (hayObjetivo) {
+        snprintf(ssidCorto, sizeof(ssidCorto), "%s", redes[redIndiceDeauth].ssid);
+        if (strlen(redes[redIndiceDeauth].ssid) == 0) snprintf(ssidCorto, sizeof(ssidCorto), "*OCULTA*");
+    } else {
+        snprintf(ssidCorto, sizeof(ssidCorto), "(toca una red)");
+    }
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(5, top);
+    tft.print("Objetivo: ");
+    tft.setTextColor(hayObjetivo ? COLOR_TEXT : COLOR_TEXT_DIM, COLOR_BG);
+    tft.print(ssidCorto);
+
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(5, top + 14);
+    tft.print("Ch: ");
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.print(hayObjetivo ? redes[redIndiceDeauth].canal : 0);
+
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(90, top + 14);
+    tft.print("Env: ");
+    tft.setTextColor(deauther.getEnviados() > 0 ? COLOR_DANGER : COLOR_TEXT, COLOR_BG);
+    tft.print(deauther.getEnviados());
+
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(180, top + 14);
+    tft.print("F: ");
+    tft.setTextColor(deauther.getFallidos() > 0 ? COLOR_WARN : COLOR_TEXT, COLOR_BG);
+    tft.print(deauther.getFallidos());
+
+    tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+    tft.setCursor(5, top + 28);
+    tft.print("Modo: ");
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.print(deauther.esBroadcast() ? "broadcast (todos)" : "dirigido (1 cliente)");
+
+    // Boton INICIAR / DETENER. Mismos numeros que el case SCREEN_DEAUTH
+    // de manejarToqueWifi(), mas abajo.
+    int yBtn = top + ALTO_BLOQUE_DEAUTH - 26;
+    uint16_t colorBtn = atacando ? COLOR_DANGER : COLOR_ACCENT;
+    dibujarEsquinas(8, yBtn, TFT_PANEL_WIDTH - 16, 22, colorBtn, 5);
+    const char* etiqueta = atacando ? "DETENER" : "INICIAR";
+    int anchoEtiqueta = anchoTextoEspaciado(etiqueta, 2);
+    dibujarTextoEspaciado((TFT_PANEL_WIDTH - anchoEtiqueta) / 2, yBtn + 7,
+                          etiqueta, colorBtn, COLOR_BG, 2);
+
+    dibujarLineaPunteada(5, top + ALTO_BLOQUE_DEAUTH, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
+
+    if (numRedes == 0) {
+        tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
+        tft.setCursor(10, top + ALTO_BLOQUE_DEAUTH + 10);
+        tft.print("Escanea primero en ESCANEAR");
+        dibujarPieAyuda("Sin redes en memoria no hay a quien atacar");
+        return;
+    }
+
+    // Lista de redes del ultimo escaneo: tocar una la elige como
+    // blanco. Mismos numeros que el case SCREEN_DEAUTH de
+    // manejarToqueWifi() (primeraFilaY y filaAlto de 20px).
+    int primeraFilaY = top + ALTO_BLOQUE_DEAUTH + 4;
+    int filaAlto = 20;
+    int maxFilas = (alturaListado() - ALTO_TITULO_SECCION - ALTO_BLOQUE_DEAUTH - ALTO_PIE_AYUDA - 4) / filaAlto;
+    int mostradas = (numRedes < maxFilas) ? numRedes : maxFilas;
+
+    for (int i = 0; i < mostradas; i++) {
+        int yFila = primeraFilaY + i * filaAlto;
+        bool elegida = (i == redIndiceDeauth);
+        uint16_t colorFondo = elegida ? COLOR_DANGER : COLOR_BG;
+        uint16_t colorFrente = elegida ? COLOR_BG : COLOR_TEXT;
+
+        // La elegida va como bloque lleno (igual que el destello de las
+        // listas de Herramientas): es seleccion, no decoracion.
+        if (elegida) {
+            tft.fillRect(2, yFila, TFT_PANEL_WIDTH - 4, filaAlto - 2, colorFondo);
+        }
+
+        char fila[42];
+        if (strlen(redes[i].ssid) == 0) {
+            snprintf(fila, sizeof(fila), "%-22.22s ch%d", "*OCULTA*", redes[i].canal);
+        } else {
+            snprintf(fila, sizeof(fila), "%-22.22s ch%d", redes[i].ssid, redes[i].canal);
+        }
+        dibujarTextoEspaciado(5, yFila + 5, fila, colorFrente, colorFondo, 0);
+    }
+
+    dibujarPieAyuda(atacando ? "Atacando: no se puede cambiar de red"
+                             : "Toca una red y despues INICIAR");
+}
+
 // Cuenta, canal por canal (1 a 13), cuantas redes del ULTIMO escaneo
 // hay en cada uno, y lo muestra como un grafico de barras
 // horizontales.
@@ -779,6 +904,17 @@ int exportarResumenSesion() {
     f.printf("Paquetes disassoc detectados: %lu\n", disassoc);
     lineas += 3;
 
+    // Bloque nuevo: lo que el propio firmware transmitio, separado de
+    // lo que solo escucho de terceros en el bloque de arriba. Env y F
+    // son de la sesion entera, no del ultimo ataque - sirven para
+    // saber si el ataque salio o si el driver venia rechazando todo.
+    f.println();
+    f.println("-- Deauth propio (transmitido) --");
+    f.printf("Tramas aceptadas por el driver: %lu\n", deauther.getEnviados());
+    f.printf("Tramas rechazadas por el driver: %lu\n", deauther.getFallidos());
+    f.printf("Ataque activo al exportar: %s\n", deauther.activo() ? "si" : "no");
+    lineas += 4;
+
     f.println();
     f.println("-- Wardriving --");
     f.printf("Redes anotadas en wardriving.csv: %d\n", wardriver.getContadorRedes());
@@ -806,15 +942,16 @@ int exportarResumenSesion() {
 }
 
 // Toque sobre cualquiera de las pantallas de WIFI que tienen algo
-// tocable (SCAN, CONOCIDAS, EVENTOS, MONITOR) - mismo cuerpo que
-// tenian esos cases del switch de manejarToque() en main.cpp, movidos
-// tal cual a su propia funcion por categoria.
+// tocable (SCAN, CONOCIDAS, EVENTOS, MONITOR, DEAUTH) - mismo cuerpo
+// que tenian esos cases del switch de manejarToque() en main.cpp,
+// movidos tal cual a su propia funcion por categoria.
 void manejarToqueWifi(MenuScreen pantalla, int x, int y) {
     switch (pantalla) {
         case SCREEN_SCAN: {
-            // Mientras hay un escaneo o un conteo de clientes en
-            // curso, un toque no hace nada.
-            if (escaneando || scanner.conteoEnProgreso()) break;
+            // Mientras hay un escaneo, un conteo de clientes o un
+            // ataque de deauth en curso, un toque no hace nada: los
+            // tres se pelean por el canal y el modo promiscuo.
+            if (escaneando || scanner.conteoEnProgreso() || deauther.activo()) break;
 
             if (redIndiceConteo >= 0) {
                 // Se esta mostrando el resultado de un conteo: un
@@ -895,6 +1032,67 @@ void manejarToqueWifi(MenuScreen pantalla, int x, int y) {
                     // siempre para reclamar el bus del touch despues.
                     touchDriver.reclaimBus();
                 #endif
+                contenidoSucio = true;
+            }
+            break;
+        }
+        case SCREEN_DEAUTH: {
+            // Mismos numeros que dibujarPantallaDeauth() para el boton
+            // y para la lista - si uno cambia sin el otro, el toque
+            // deja de coincidir con lo que se ve dibujado.
+            int top = CONTENT_TOP + ALTO_TITULO_SECCION;
+            int yBtn = top + ALTO_BLOQUE_DEAUTH - 26;
+
+            if (y >= yBtn && y <= yBtn + 22) {
+                if (deauther.activo()) {
+                    deauther.detener();
+                    eventos.registrar("Deauth: detenido");
+                    #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+                        touchDriver.reclaimBus();
+                    #endif
+                    contenidoSucio = true;
+                    break;
+                }
+
+                // Un scan en curso apaga el promiscuo justo cuando el
+                // ataque lo necesita: se espera a que termine.
+                if (escaneando) break;
+                if (redIndiceDeauth < 0 || redIndiceDeauth >= numRedes) break;
+
+                const RedInfo& r = redes[redIndiceDeauth];
+                // Si el ultimo conteo de clientes de esa red dejo
+                // alguno anotado, se ataca a UNO solo (reason 7, mas
+                // efectivo: el cliente no tiene de donde agarrarse).
+                // Si no hay ninguno, broadcast con reason 1.
+                int cuantos = 0;
+                ClienteInfo* cl = scanner.getClientes(cuantos);
+                bool broadcast = (cuantos == 0);
+                const uint8_t* cliente = broadcast ? nullptr : cl[0].mac;
+
+                if (deauther.iniciar(r.bssid, r.canal, cliente, broadcast)) {
+                    eventos.registrar(broadcast ? "Deauth: ataque broadcast iniciado"
+                                                : "Deauth: ataque dirigido iniciado");
+                } else {
+                    eventos.registrar("Deauth: no pude iniciar el ataque");
+                }
+                #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
+                    touchDriver.reclaimBus();
+                #endif
+                contenidoSucio = true;
+                break;
+            }
+
+            // Con el ataque corriendo la lista queda fija: cambiar de
+            // red obligaria a reencauzar el canal a mitad de rafaga.
+            if (deauther.activo()) break;
+
+            int primeraFilaY = top + ALTO_BLOQUE_DEAUTH + 4;
+            int filaAlto = 20;
+            int maxFilas = (alturaListado() - ALTO_TITULO_SECCION - ALTO_BLOQUE_DEAUTH - ALTO_PIE_AYUDA - 4) / filaAlto;
+            int indice = (y - primeraFilaY) / filaAlto;
+
+            if (y >= primeraFilaY && indice >= 0 && indice < numRedes && indice < maxFilas) {
+                redIndiceDeauth = indice;
                 contenidoSucio = true;
             }
             break;
