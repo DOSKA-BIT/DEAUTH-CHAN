@@ -21,7 +21,8 @@ static const unsigned long ESPACIO_US   = 500;
 // desactiva esa validacion y deja pasar la trama tal cual la armamos.
 // (Sigue existiendo en la 2.0.17 que trae espressif32 6.9.0, que es
 // la que fija el platformio.ini.)
-extern "C" int ieee80211_raw_frame_sanity_check(int32_t, int32_t, int32_t) { return 0; }
+extern "C" int __real_ieee80211_raw_frame_sanity_check(int32_t, int32_t, int32_t);
+extern "C" int __wrap_ieee80211_raw_frame_sanity_check(int32_t, int32_t, int32_t) { return 0; }
 
 void Deauther::begin() {
     // Sin inicializacion de radio a proposito (ver el .h):
