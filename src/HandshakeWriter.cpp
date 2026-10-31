@@ -2,6 +2,11 @@
 #include "boards/BoardConfig.h"
 #include <SD.h>
 
+// Tamaño maximo de un frame EAPOL que vamos a recibir. Coincide con
+// el buffer que usa WiFiScanner para PaqueteEAPOL (EAPOL_FRAME_MAX =
+// 256). Si algun dia cambia ahi, cambiar aca tambien.
+#define HANDHAKE_EAPOL_MAX 256
+
 bool HandshakeWriter::begin() {
     SD.end();
     if (!SD.begin(SD_CS_PIN)) return false;
@@ -26,10 +31,11 @@ bool HandshakeWriter::write(const uint8_t* bssid, const uint8_t* stmac,
                              const uint8_t* anonce, const uint8_t* snonce,
                              const uint8_t* mic, const uint8_t* eapol, uint16_t eapolLen) {
     if (!listo) return false;
+    if (eapolLen > HANDHAKE_EAPOL_MAX) return false;  // no entra en el buffer
     File f = SD.open(path, FILE_APPEND);
     if (!f) return false;
 
-    char b[13], s[13], an[65], sn[65], m[33], e[EAPOL_FRAME_MAX * 2 + 1];
+    char b[13], s[13], an[65], sn[65], m[33], e[HANDHAKE_EAPOL_MAX * 2 + 1];
     hex(b, bssid, 6);
     hex(s, stmac, 6);
     hex(an, anonce, 32);
@@ -37,9 +43,6 @@ bool HandshakeWriter::write(const uint8_t* bssid, const uint8_t* stmac,
     hex(m, mic, 16);
     hex(e, eapol, eapolLen);
 
-    // Formato hashcat 22000: WPA*02*MIC*BSSID*STMAC*SNONCE*ANONCE*EAPOL*ESSID
-    // El ESSID queda como placeholder: hay que resolverlo desde el
-    // beacon/probe del mismo BSSID (WiFiScanner ya lo tiene en redes[]).
     f.printf("WPA*02*%s*%s*%s*%s*%s*%s*%s\n", m, b, s, sn, an, e, "ESSID");
     f.close();
     escritos++;
