@@ -1,28 +1,54 @@
 # CYD Wardriver
 
+![Build](https://github.com/DOSKA-BIT/deauth-chan/actions/workflows/build.yml/badge.svg)
+![Release](https://github.com/DOSKA-BIT/deauth-chan/actions/workflows/release.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+
 Firmware para convertir una placa "Cheap Yellow Display" (familia
 ESP32-2432S0xx / 3248S035x) en un compañero de wardriving con mascota
-estilo tamagotchi: escanea redes WiFi de forma pasiva, cuenta
-dispositivos por RSSI, guarda todo con posición GPS y muestra el
-resultado en pantalla con una carita que reacciona a lo que va
-encontrando.
+estilo pwnagotchi: escanea redes WiFi y dispositivos BLE de forma
+pasiva, cuenta dispositivos por RSSI, guarda todo con posición GPS y
+muestra el resultado en pantalla con una carita de ojos grandes
+estilo anime que reacciona a lo que va encontrando.
 
 ## Qué hace y qué no hace
 
 Este proyecto **solo escucha**. No transmite tramas de deautenticación,
-no clona puntos de acceso, no captura handshakes para crackeo offline.
-Todo lo que hace es:
+no clona puntos de acceso, no captura handshakes para crackeo offline,
+y no tiene ninguna funcionalidad de ataque activo en ningún menú ni
+modo oculto. Todo lo que hace es:
 
-- Escaneo WiFi estándar (`WiFi.scanNetworks`)
-- Conteo pasivo de cuántos dispositivos distintos se escuchan hablando
-  con un AP puntual (modo promiscuo de solo recepción)
+- Escaneo WiFi estándar (`WiFi.scanNetworks`) y modo promiscuo de
+  **solo recepción** para contar dispositivos y detectar
+  deauth/disassoc de terceros (para avisarte, no para generarlos)
+- Escaneo BLE pasivo (nunca se conecta a nada ni manda un scan
+  request) para listar dispositivos cercanos y avisar cuando alguno
+  anuncia el formato público de "Find My" de Apple
 - Registro de posición GPS + CSV/PCAP de lo que se ve en el aire
   (beacons y probe requests, nunca handshakes ni tráfico de datos)
 - Una mascota en pantalla que cambia de humor según lo que va
   descubriendo
 
 Si buscás una herramienta de auditoría con capacidad de ataque activo,
-este no es el proyecto.
+este no es el proyecto, y no lo va a ser en ningún agregado futuro.
+
+## Herramientas disponibles
+
+| Categoría | Herramienta | Qué hace |
+|---|---|---|
+| WIFI | Escanear | Busca redes WiFi cerca |
+| WIFI | Stats | Memoria de redes ya vistas, con cuántas veces se vieron |
+| WIFI | Conocidas | Redes guardadas, ordenables por señal |
+| WIFI | Monitor | Detecta deauth/disassoc ajenos + captura PCAP opcional |
+| WIFI | Eventos | Historial de la sesión actual |
+| WIFI | Canales | Uso del espectro, canal por canal (barras) |
+| WIFI | Analizador | Tráfico en vivo (beacons/deauths/probes) en un canal elegido a mano, gráfico de línea en el tiempo |
+| WIFI | Duplicado | Mismo SSID con más de un BSSID en el último escaneo (posible gemelo malvado) |
+| WARDRIVING | Wardrive | Guarda ubicación GPS + redes vistas en CSV, exportable a KML |
+| RADAR | Radar | Dispositivos BLE cerca por señal, marca los que están en la red Find My de Apple |
+| AJUSTES | Config | Datos de la placa, estado de la SD, heap/uptime |
+| AJUSTES | Idioma | Español / English (en progreso: el chrome del menú ya traduce, el resto de las pantallas se está migrando) |
+| AJUSTES | Brillo / Autosleep / Borrar redes | Brillo de pantalla por PWM, apagado automático configurable, borrado del historial de redes con doble confirmación |
 
 ## Estado del soporte multiplaca
 
@@ -40,7 +66,8 @@ código: cada una vive en `src/boards/Board_XXXX.h`, se selecciona con
 un `-D CYD_BOARD_XXXX` en su propio `[env:]` de `platformio.ini`, y el
 touch se resuelve solo entre tres implementaciones (`TouchResistive`,
 `TouchResistiveSharedBus`, `TouchCapacitive`) según lo que declare el
-perfil de la placa.
+perfil de la placa. Ver [CONTRIBUTING.md](CONTRIBUTING.md) si querés
+sumar una placa nueva.
 
 ### Sobre las fuentes de los pinouts
 
@@ -64,13 +91,27 @@ resuelve esto (cada escritura a SD reclama el bus, y se lo devuelve al
 touch después), pero si notás que el touch se queda sin responder justo
 después de guardar algo, es ese reparto, no un bug.
 
-## Compilar
+## Instalar sin compilar nada (flasheo desde el navegador)
+
+Si tu placa ya está soportada (ver tabla arriba) y solo querés
+probarla, no hace falta instalar PlatformIO ni nada: conectá la placa
+por USB a una compu con Chrome o Edge (necesita Web Serial, Firefox y
+Safari no andan) y entrá a:
+
+**[Página de instalación →](https://doska-bit.github.io/deauth-chan/)**
+
+Elegí el botón de tu placa y seguí los pasos; el navegador se encarga
+de todo (borra y flashea bootloader + particiones + firmware). Esa
+página siempre instala el último [Release](https://github.com/DOSKA-BIT/deauth-chan/releases)
+publicado.
+
+## Compilar vos mismo
 
 Sin entorno local de desarrollo:
 
 1. Hacé fork o subí este repo a GitHub
 2. El workflow en `.github/workflows/build.yml` compila las 4 placas
-   en paralelo
+   en paralelo en cada push
 3. Descargá el artifact `firmware-cyd-XXXX` que corresponda a tu placa
    y flasheá `firmware.bin` / `bootloader.bin` / `partitions.bin` con
    esptool o con la herramienta web de espressif
@@ -90,12 +131,18 @@ pio run -e cyd-3248s035c -t upload
 src/
   boards/                  perfiles de pines por placa
   main.cpp                 loop principal y manejo de pantallas
+  Menu.cpp                 chrome compartido + menu de categorias/herramientas
+  Screen*.cpp              pantallas de cada categoria (WIFI, WARDRIVING, RADAR, AJUSTES)
   Mascota.*                la carita y sus animaciones
-  WiFiScanner.*            escaneo pasivo + conteo de clientes
+  MascotaCaras.h           bitmaps de la carita (generados por tools/generar_caras.py)
+  WiFiScanner.*            escaneo pasivo + conteo de clientes + Analizador de canales
+  BLEScanner.*             escaneo BLE pasivo (RADAR + deteccion de Find My)
   Learning.*               memoria de redes ya vistas
   Wardriving.*             log CSV con posición GPS
   PCAPWriter.*             log PCAP de beacons/probes
   GPSModule.*              lectura del NEO-6M
+  Settings.*               ajustes persistentes (brillo, autosleep, idioma) en NVS
+  Idioma.*                 sistema de traducciones (ES/EN)
   TouchDriver.h            interfaz común de touch
   TouchResistive.h         XPT2046 en bus dedicado (2432S028/S024)
   TouchResistiveSharedBus.h XPT2046 compartiendo bus con la pantalla (3248S035R)
@@ -109,3 +156,13 @@ src/
   los pines exactos dependen de la placa, ver `Board_XXXX.h`
 - Ranura microSD en el mismo bus SPI que ocupa el touch (ver aviso
   arriba)
+
+## Contribuir
+
+Ver [CONTRIBUTING.md](CONTRIBUTING.md) para sumar soporte de una placa
+nueva o proponer una herramienta. Para reportar un problema de
+seguridad, ver [SECURITY.md](SECURITY.md).
+
+## Licencia
+
+MIT - ver [LICENSE](LICENSE).
