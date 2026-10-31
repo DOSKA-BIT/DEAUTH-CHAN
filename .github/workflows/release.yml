@@ -1,0 +1,90 @@
+name: Release
+
+# Se dispara al pushear un tag tipo v1.0.0 (git tag v1.0.0 && git push
+# origin v1.0.0, o creando un tag desde la UI de GitHub en Releases ->
+# "Draft a new release" -> elegir/crear el tag). Compila las 4 placas
+# (mismos pasos que build.yml) y publica un Release con los binarios
+# de cada una, con nombre unico por placa - eso es lo que consumen los
+# manifest-*.json de docs/ para el flasheo desde el navegador (ver
+# README, seccion "Instalar sin compilar nada").
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env:
+          - cyd-2432s028
+          - cyd-2432s024
+          - cyd-3248s035r
+          - cyd-3248s035c
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: |
+          pip install platformio
+
+      - name: Build project
+        run: |
+          pio run -e ${{ matrix.env }}
+
+      - name: Preparar binarios con nombre unico por placa
+        run: |
+          mkdir -p release
+
+          cp .pio/build/${{ matrix.env }}/firmware.bin    release/firmware-${{ matrix.env }}.bin
+          cp .pio/build/${{ matrix.env }}/bootloader.bin  release/bootloader-${{ matrix.env }}.bin
+          cp .pio/build/${{ matrix.env }}/partitions.bin  release/partitions-${{ matrix.env }}.bin
+
+          # boot_app0.bin inicializa la particion otadata para que el
+          # bootloader sepa arrancar app0 - el core de Arduino-ESP32 lo
+          # trae adentro del framework que baja PlatformIO, no lo
+          # genera el build en si. Hace falta para un flasheo desde
+          # cero (esptool/ESP Web Tools), que es justo el caso de uso
+          # de este workflow - sin esto una placa recien flasheada
+          # puede no bootear a la primera.
+          BOOT_APP0=$(find ~/.platformio/packages/framework-arduinoespressif32 -name boot_app0.bin | head -n1)
+          if [ -z "$BOOT_APP0" ]; then
+            echo "No se encontro boot_app0.bin en el framework de PlatformIO" >&2
+            exit 1
+          fi
+          cp "$BOOT_APP0" release/boot_app0-${{ matrix.env }}.bin
+
+      - name: Subir binarios como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.env }}
+          path: release/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar todos los artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Juntar todos los .bin en una sola carpeta
+        run: |
+          mkdir -p release-final
+          find artifacts -type f -name '*.bin' -exec cp {} release-final/ \;
+          ls -la release-final/
+
+      - name: Crear el Release en GitHub con los binarios adjuntos
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-final/*.bin
+          generate_release_notes: true
