@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CYD Wardriver - Instalar</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10.1.0/dist/web/install-button.js"></script>
+  <style>
+    :root {
+      color-scheme: dark light;
+      --bg: #0b0d10;
+      --panel: #15181c;
+      --text: #e8e6df;
+      --text-dim: #9a968a;
+      --accent: #e6c35a;
+      --border: #2a2d33;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 24px 16px 60px;
+    }
+    main { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    p.lead { color: var(--text-dim); margin-top: 0; }
+    .aviso {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 20px 0;
+      font-size: 0.92rem;
+      color: var(--text-dim);
+    }
+    .aviso strong { color: var(--text); }
+    .placas {
+      display: grid;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .placa {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .placa h2 { font-size: 1rem; margin: 0 0 4px; }
+    .placa p { font-size: 0.85rem; color: var(--text-dim); margin: 0; }
+    esp-web-install-button {
+      --esp-tools-button-color: var(--accent);
+    }
+    footer {
+      margin-top: 40px;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-align: center;
+    }
+    footer a { color: var(--accent); }
+    .unsupported {
+      display: none;
+      background: #3a2020;
+      border: 1px solid #6b3030;
+      color: #f0c0c0;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-top: 20px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>CYD Wardriver</h1>
+    <p class="lead">Instalá el firmware directamente desde el navegador, sin compilar nada.</p>
+
+    <div class="aviso">
+      <strong>Antes de instalar:</strong> necesitás Chrome o Edge (Web
+      Serial no funciona en Firefox ni Safari) y la placa conectada
+      por USB. La instalación <strong>borra todo</strong> lo que haya
+      en la flash antes de escribir el firmware nuevo - si tenías
+      datos en la SD no se tocan (es una tarjeta aparte), pero
+      cualquier otro firmware que tuviera la placa se pierde.
+    </div>
+
+    <noscript>
+      <div class="aviso">Esta página necesita JavaScript para funcionar.</div>
+    </noscript>
+
+    <div class="placas">
+      <div class="placa">
+        <div>
+          <h2>ESP32-2432S028 (2.8")</h2>
+          <p>Táctil resistivo, bus dedicado</p>
+        </div>
+        <esp-web-install-button manifest="manifest-2432s028.json"></esp-web-install-button>
+      </div>
+
+      <div class="placa">
+        <div>
+          <h2>ESP32-2432S024 (2.4")</h2>
+          <p>Táctil resistivo, bus dedicado</p>
+        </div>
+        <esp-web-install-button manifest="manifest-2432s024.json"></esp-web-install-button>
+      </div>
+
+      <div class="placa">
+        <div>
+          <h2>ESP32-3248S035R (3.5")</h2>
+          <p>Táctil resistivo, bus compartido con la pantalla</p>
+        </div>
+        <esp-web-install-button manifest="manifest-3248s035r.json"></esp-web-install-button>
+      </div>
+
+      <div class="placa">
+        <div>
+          <h2>ESP32-3248S035C (3.5")</h2>
+          <p>Táctil capacitivo (GT911)</p>
+        </div>
+        <esp-web-install-button manifest="manifest-3248s035c.json"></esp-web-install-button>
+      </div>
+    </div>
+
+    <p style="margin-top:28px; font-size:0.85rem; color:var(--text-dim)">
+      ¿No estás seguro de cuál es tu placa? Mirá la
+      <a href="https://github.com/DOSKA-BIT/deauth-chan#estado-del-soporte-multiplaca" style="color:var(--accent)">tabla de placas soportadas</a>
+      en el repositorio.
+    </p>
+
+    <footer>
+      Esta página siempre instala el
+      <a href="https://github.com/DOSKA-BIT/deauth-chan/releases/latest">último Release</a>
+      publicado. Código fuente en
+      <a href="https://github.com/DOSKA-BIT/deauth-chan">github.com/DOSKA-BIT/deauth-chan</a>.
+    </footer>
+  </main>
+</body>
+</html>

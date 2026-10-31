@@ -1,0 +1,16 @@
+{
+  "name": "CYD Wardriver - ESP32-3248S035C (3.5\" capacitivo)",
+  "version": "latest",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        { "path": "https://github.com/DOSKA-BIT/deauth-chan/releases/latest/download/bootloader-cyd-3248s035c.bin", "offset": 4096 },
+        { "path": "https://github.com/DOSKA-BIT/deauth-chan/releases/latest/download/partitions-cyd-3248s035c.bin", "offset": 32768 },
+        { "path": "https://github.com/DOSKA-BIT/deauth-chan/releases/latest/download/boot_app0-cyd-3248s035c.bin", "offset": 57344 },
+        { "path": "https://github.com/DOSKA-BIT/deauth-chan/releases/latest/download/firmware-cyd-3248s035c.bin", "offset": 65536 }
+      ]
+    }
+  ]
+}
