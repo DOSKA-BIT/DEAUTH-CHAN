@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="DEAUTH-CHAN" width="260">
+</p>
+
 # CYD Wardriver
 
 ![Build](https://github.com/DOSKA-BIT/deauth-chan/actions/workflows/build.yml/badge.svg)
