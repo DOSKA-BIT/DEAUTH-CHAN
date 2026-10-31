@@ -2,8 +2,18 @@
 #define DEAUTHER_H
 
 #include <Arduino.h>
+#include <esp_wifi.h>
 
-
+// Estados posibles del deauther, para que la UI pueda mostrar algo
+// mas util que "activo / no activo". DEAUTH_FALLANDO se prende solo
+// cuando el driver empieza a rechazar tramas de forma sostenida
+// (ver fallidosConsecutivos en el .cpp).
+enum EstadoDeauth {
+    DEAUTH_IDLE = 0,
+    DEAUTH_ATACANDO,
+    DEAUTH_FALLANDO,
+    DEAUTH_DETENIDO_POR_ERROR
+};
 
 class Deauther {
 public:
@@ -20,10 +30,12 @@ public:
     unsigned long getFallidos() const { return fallidos; }
     int getCanal() const { return canalObjetivo; }
     bool esBroadcast() const { return modoBroadcast; }
+    EstadoDeauth getEstado() const { return estado; }
 
 private:
     void construirTrama();
     bool asegurarPromiscuo();
+    void rearmarCallbackPromiscuo();
 
     struct TramaDeauth {
         uint8_t  fc[2];
@@ -44,6 +56,8 @@ private:
     unsigned long ultimoEnvio = 0;
     unsigned long enviados = 0;
     unsigned long fallidos = 0;
+    unsigned long fallidosConsecutivos = 0;
+    EstadoDeauth estado = DEAUTH_IDLE;
 };
 
 #endif
