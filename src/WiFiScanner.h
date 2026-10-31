@@ -17,11 +17,6 @@
 #define ANALIZADOR_DWELL_MS 300
 #define ANALIZADOR_MUESTRAS 48
 
-// Copia cruda de UN frame de management (beacon, probe req/resp,
-// deauth o disassoc - ver el filtro en promiscuousCallback()) para
-// pasarla de la tarea del driver WiFi al loop() principal, que es
-// quien de verdad la escribe a la SD via PCAPWriter. Si el frame es
-// mas largo que PCAP_FRAME_MAX se trunca.
 struct PaqueteCrudoWiFi {
     uint8_t datos[PCAP_FRAME_MAX];
     uint16_t len;
@@ -29,12 +24,6 @@ struct PaqueteCrudoWiFi {
     uint32_t ts_usec;
 };
 
-// Copia cruda de UN frame EAPOL (los 4 mensajes del handshake) para
-// pasarla del callback de WiFi a loop(), que es quien la procesa y
-// escribe. Mismo patron que PaqueteCrudoWiFi, buffer aparte para no
-// mezclar con el PCAP de management. Lleva bssid/stmac ya extraidos
-// porque el procesamiento del par M1/M2 los necesita y no conviene
-// reparsearlos despues.
 struct PaqueteEAPOL {
     uint8_t datos[EAPOL_FRAME_MAX];
     uint16_t len;
@@ -84,11 +73,6 @@ public:
     unsigned long getPCAPCapturados() const { return pcapCapturados; }
     bool sacarPaquetePCAP(PaqueteCrudoWiFi& out);
 
-    // Deteccion pasiva de EAPOL (4-way handshake). Corre siempre que
-    // el radio este promiscuo, no se prende desde pantalla. No
-    // transmite. El par M1/M2 se arma en loop() (procesarEAPOL), no
-    // aca. eapolActivo es bool simple sin mux, mismo criterio que
-    // pcapActivo: un solo lugar lo escribe, un solo lugar lo lee.
     void activarEAPOL(bool activo) { eapolActivo = activo; }
     bool eapolEstaActivo() const { return eapolActivo; }
     unsigned long getEAPOLCapturados() const { return eapolCapturados; }
@@ -102,6 +86,11 @@ public:
     int getCanalActualAnalizador() const { return canalActualAnalizador; }
 
     void getHistorialAnalizador(uint16_t* outBeacons, uint16_t* outDeauths, uint16_t* outProbes, int n);
+
+    // Callback de promiscuo expuesto como publico para que Deauther
+    // pueda re-armarlo si el driver lo pierde (ver
+    // Deauther::rearmarCallbackPromiscuo). Sigue siendo static.
+    static void promiscuousCallbackPublico(void* buf, wifi_promiscuous_pkt_type_t type);
 
 private:
     static void promiscuousCallback(void* buf, wifi_promiscuous_pkt_type_t type);
@@ -138,9 +127,6 @@ private:
     bool pcapActivo = false;
     unsigned long pcapCapturados = 0;
 
-    // Buffer circular de EAPOL, mismo patron exacto que pcapBuffer:
-    // el callback solo copia bytes a RAM bajo el mux, loop() drena de
-    // a uno y procesa fuera del contexto de radio.
     PaqueteEAPOL eapolBuffer[EAPOL_BUFFER_SIZE];
     int eapolEscribirIdx = 0;
     int eapolLeerIdx = 0;
