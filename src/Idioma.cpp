@@ -51,6 +51,39 @@ static const char* ES[CANTIDAD_TEXTOS] = {
     "IDIOMA",                                      // TXT_HERR_IDIOMA_NOMBRE
     "Cambiar el idioma de la interfaz",            // TXT_HERR_IDIOMA_DESC
 
+    "Buscando...",                                 // TXT_RADAR_PIE_BUSCANDO
+    "Rojo = red Find My (no es 100% un AirTag)",   // TXT_RADAR_PIE_FINDMY
+    "%d cerca - centro = senial mas fuerte",       // TXT_RADAR_PIE_CERCA
+
+    "Buscando dispositivos BLE...",                // TXT_RASTREADOR_PIE_BUSCANDO
+    "Toca un dispositivo para rastrearlo",         // TXT_RASTREADOR_PIE_LISTA
+    "DISPOSITIVO PERDIDO",                         // TXT_RASTREADOR_PERDIDO
+    "Toca la pantalla para volver a la lista",     // TXT_RASTREADOR_PIE_VOLVER
+    "SIN SENIAL RECIENTE",                         // TXT_RASTREADOR_SIN_SENIAL
+    "ACERCANDOSE",                                 // TXT_RASTREADOR_ACERCANDOSE
+    "ALEJANDOSE",                                  // TXT_RASTREADOR_ALEJANDOSE
+    "SIN CAMBIOS",                                 // TXT_RASTREADOR_SIN_CAMBIOS
+
+    "BRILLO",                                      // TXT_CONFIG_BRILLO
+    "AUTOSLEEP",                                   // TXT_CONFIG_AUTOSLEEP
+    "NUNCA",                                       // TXT_CONFIG_AUTOSLEEP_NUNCA
+    "SEGURO? TOCA DE NUEVO",                       // TXT_CONFIG_BORRAR_ARMAR
+    "LISTO, SE BORRARON",                          // TXT_CONFIG_BORRAR_HECHO
+    "BORRAR REDES GUARDADAS",                      // TXT_CONFIG_BORRAR_NORMAL
+    "Placa: ",                                     // TXT_CONFIG_PLACA
+    "Pant: ",                                      // TXT_CONFIG_PANT
+    "  Touch: ",                                   // TXT_CONFIG_TOUCH
+    "Capacitivo",                                  // TXT_CONFIG_CAPACITIVO
+    "Resistivo",                                   // TXT_CONFIG_RESISTIVO
+    "SD: ",                                        // TXT_CONFIG_SD
+    "OK",                                          // TXT_CONFIG_SD_OK
+    "No detectada",                                // TXT_CONFIG_SD_NO_DETECTADA
+    "Toca - / + para ajustar, o Borrar redes abajo", // TXT_CONFIG_PIE
+    "Heap: ",                                      // TXT_CONFIG_HEAP
+    " KB libre/minimo",                            // TXT_CONFIG_HEAP_SUFIJO
+    "Uptime: ",                                    // TXT_CONFIG_UPTIME
+    "  CPU ",                                      // TXT_CONFIG_CPU
+
     "IDIOMA",                                      // TXT_IDIOMA_TITULO
     "Toca un idioma para activarlo",               // TXT_IDIOMA_PIE
 };
@@ -102,6 +135,39 @@ static const char* EN[CANTIDAD_TEXTOS] = {
     "Board info and SD card",                      // TXT_HERR_CONFIG_DESC
     "LANGUAGE",                                    // TXT_HERR_IDIOMA_NOMBRE
     "Change the interface language",               // TXT_HERR_IDIOMA_DESC
+
+    "Searching...",                                // TXT_RADAR_PIE_BUSCANDO
+    "Red = Find My network (not necessarily an AirTag)", // TXT_RADAR_PIE_FINDMY
+    "%d nearby - center = strongest signal",       // TXT_RADAR_PIE_CERCA
+
+    "Searching for BLE devices...",                // TXT_RASTREADOR_PIE_BUSCANDO
+    "Tap a device to track it",                    // TXT_RASTREADOR_PIE_LISTA
+    "DEVICE LOST",                                 // TXT_RASTREADOR_PERDIDO
+    "Tap the screen to go back to the list",       // TXT_RASTREADOR_PIE_VOLVER
+    "NO RECENT SIGNAL",                            // TXT_RASTREADOR_SIN_SENIAL
+    "GETTING CLOSER",                               // TXT_RASTREADOR_ACERCANDOSE
+    "GETTING FARTHER",                              // TXT_RASTREADOR_ALEJANDOSE
+    "NO CHANGE",                                   // TXT_RASTREADOR_SIN_CAMBIOS
+
+    "BRIGHTNESS",                                  // TXT_CONFIG_BRILLO
+    "AUTOSLEEP",                                   // TXT_CONFIG_AUTOSLEEP
+    "NEVER",                                       // TXT_CONFIG_AUTOSLEEP_NUNCA
+    "SURE? TAP AGAIN",                             // TXT_CONFIG_BORRAR_ARMAR
+    "DONE, ERASED",                                // TXT_CONFIG_BORRAR_HECHO
+    "ERASE SAVED NETWORKS",                        // TXT_CONFIG_BORRAR_NORMAL
+    "Board: ",                                     // TXT_CONFIG_PLACA
+    "Screen: ",                                    // TXT_CONFIG_PANT
+    "  Touch: ",                                   // TXT_CONFIG_TOUCH
+    "Capacitive",                                  // TXT_CONFIG_CAPACITIVO
+    "Resistive",                                   // TXT_CONFIG_RESISTIVO
+    "SD: ",                                        // TXT_CONFIG_SD
+    "OK",                                          // TXT_CONFIG_SD_OK
+    "Not detected",                                // TXT_CONFIG_SD_NO_DETECTADA
+    "Tap - / + to adjust, or Erase networks below", // TXT_CONFIG_PIE
+    "Heap: ",                                      // TXT_CONFIG_HEAP
+    " KB free/min",                                // TXT_CONFIG_HEAP_SUFIJO
+    "Uptime: ",                                    // TXT_CONFIG_UPTIME
+    "  CPU ",                                      // TXT_CONFIG_CPU
 
     "LANGUAGE",                                    // TXT_IDIOMA_TITULO
     "Tap a language to switch to it",              // TXT_IDIOMA_PIE

@@ -94,6 +94,42 @@ enum TextoId {
     TXT_HERR_IDIOMA_NOMBRE,
     TXT_HERR_IDIOMA_DESC,
 
+    // Pantalla RADAR (ScreenRadar.cpp) - Fase 2
+    TXT_RADAR_PIE_BUSCANDO,
+    TXT_RADAR_PIE_FINDMY,
+    TXT_RADAR_PIE_CERCA,
+
+    // Pantalla RASTREADOR (ScreenRadar.cpp) - Fase 2
+    TXT_RASTREADOR_PIE_BUSCANDO,
+    TXT_RASTREADOR_PIE_LISTA,
+    TXT_RASTREADOR_PERDIDO,
+    TXT_RASTREADOR_PIE_VOLVER,
+    TXT_RASTREADOR_SIN_SENIAL,
+    TXT_RASTREADOR_ACERCANDOSE,
+    TXT_RASTREADOR_ALEJANDOSE,
+    TXT_RASTREADOR_SIN_CAMBIOS,
+
+    // Pantalla CONFIG (ScreenAjustes.cpp) - Fase 2
+    TXT_CONFIG_BRILLO,
+    TXT_CONFIG_AUTOSLEEP,
+    TXT_CONFIG_AUTOSLEEP_NUNCA,
+    TXT_CONFIG_BORRAR_ARMAR,
+    TXT_CONFIG_BORRAR_HECHO,
+    TXT_CONFIG_BORRAR_NORMAL,
+    TXT_CONFIG_PLACA,
+    TXT_CONFIG_PANT,
+    TXT_CONFIG_TOUCH,
+    TXT_CONFIG_CAPACITIVO,
+    TXT_CONFIG_RESISTIVO,
+    TXT_CONFIG_SD,
+    TXT_CONFIG_SD_OK,
+    TXT_CONFIG_SD_NO_DETECTADA,
+    TXT_CONFIG_PIE,
+    TXT_CONFIG_HEAP,
+    TXT_CONFIG_HEAP_SUFIJO,
+    TXT_CONFIG_UPTIME,
+    TXT_CONFIG_CPU,
+
     // Pantalla IDIOMA (ScreenAjustes.cpp) - los nombres de cada idioma
     // ("ESPANOL"/"ENGLISH") NO son claves de esta lista a proposito:
     // un selector de idioma siempre muestra cada opcion en su propio

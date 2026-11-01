@@ -50,7 +50,7 @@ void actualizarDiagnosticoHardware() {
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(10, yBloque);
-    tft.print("Heap: ");
+    tft.print(tr(TXT_CONFIG_HEAP));
     // Por debajo de 20KB el ESP32 empieza a fallar cosas como el WiFi
     // scan o el TLS, asi que marco en rojo cuando se acerca a eso en
     // vez de esperar a que algo explote para enterarme.
@@ -61,7 +61,7 @@ void actualizarDiagnosticoHardware() {
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.print(heapMinimo);
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-    tft.print(" KB libre/minimo");
+    tft.print(tr(TXT_CONFIG_HEAP_SUFIJO));
 
     unsigned long segundos = millis() / 1000;
     int horas = segundos / 3600;
@@ -70,13 +70,13 @@ void actualizarDiagnosticoHardware() {
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(10, yBloque + 16);
-    tft.print("Uptime: ");
+    tft.print(tr(TXT_CONFIG_UPTIME));
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     char uptimeBuf[12];
     sprintf(uptimeBuf, "%02d:%02d:%02d", horas, minutos, segs);
     tft.print(uptimeBuf);
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-    tft.print("  CPU ");
+    tft.print(tr(TXT_CONFIG_CPU));
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.print(ESP.getCpuFreqMHz());
     tft.print("MHz");
@@ -93,7 +93,7 @@ static void dibujarFilaBrillo() {
     int xMenos = xMas - ANCHO_BTN_AJUSTES - 60;
     int yBtn = Y_FILA_BRILLO + 3;
 
-    dibujarTextoEspaciado(10, yBtn + ALTO_BTN_AJUSTES / 2 - 3, "BRILLO", COLOR_TEXT_DIM, COLOR_BG, 1);
+    dibujarTextoEspaciado(10, yBtn + ALTO_BTN_AJUSTES / 2 - 3, tr(TXT_CONFIG_BRILLO), COLOR_TEXT_DIM, COLOR_BG, 1);
 
     dibujarEsquinas(xMenos, yBtn, ANCHO_BTN_AJUSTES, ALTO_BTN_AJUSTES, COLOR_ACCENT_DIM, 3);
     dibujarTextoEspaciado(xMenos + 7, yBtn + ALTO_BTN_AJUSTES / 2 - 3, "-", COLOR_TEXT, COLOR_BG, 0);
@@ -118,7 +118,7 @@ static void dibujarFilaAutosleep() {
     int xMenos = xMas - ANCHO_BTN_AJUSTES - 60;
     int yBtn = Y_FILA_AUTOSLEEP + 3;
 
-    dibujarTextoEspaciado(10, yBtn + ALTO_BTN_AJUSTES / 2 - 3, "AUTOSLEEP", COLOR_TEXT_DIM, COLOR_BG, 1);
+    dibujarTextoEspaciado(10, yBtn + ALTO_BTN_AJUSTES / 2 - 3, tr(TXT_CONFIG_AUTOSLEEP), COLOR_TEXT_DIM, COLOR_BG, 1);
 
     dibujarEsquinas(xMenos, yBtn, ANCHO_BTN_AJUSTES, ALTO_BTN_AJUSTES, COLOR_ACCENT_DIM, 3);
     dibujarTextoEspaciado(xMenos + 7, yBtn + ALTO_BTN_AJUSTES / 2 - 3, "-", COLOR_TEXT, COLOR_BG, 0);
@@ -129,7 +129,7 @@ static void dibujarFilaAutosleep() {
     int minutos = ajustes.getAutosleepMinutos();
     char valor[8];
     if (minutos == 0) {
-        snprintf(valor, sizeof(valor), "NUNCA");
+        snprintf(valor, sizeof(valor), "%s", tr(TXT_CONFIG_AUTOSLEEP_NUNCA));
     } else {
         snprintf(valor, sizeof(valor), "%dm", minutos);
     }
@@ -152,15 +152,15 @@ static void dibujarFilaBorrar() {
     uint16_t color;
     switch (estadoBorrar) {
         case BORRAR_ARMADO:
-            texto = "SEGURO? TOCA DE NUEVO";
+            texto = tr(TXT_CONFIG_BORRAR_ARMAR);
             color = COLOR_DANGER;
             break;
         case BORRAR_HECHO:
-            texto = "LISTO, SE BORRARON";
+            texto = tr(TXT_CONFIG_BORRAR_HECHO);
             color = COLOR_ACCENT;
             break;
         default:
-            texto = "BORRAR REDES GUARDADAS";
+            texto = tr(TXT_CONFIG_BORRAR_NORMAL);
             color = COLOR_TEXT_DIM;
             break;
     }
@@ -183,11 +183,13 @@ void actualizarEstadoBorrado() {
 
 void dibujarPantallaConfig() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("CONFIG", COLOR_CAT_BLUE, ICONO_CONFIG);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_CONFIG_NOMBRE,
+    // "CONFIG" en los dos idiomas) en vez de una clave de titulo aparte.
+    dibujarTituloSeccion(tr(TXT_HERR_CONFIG_NOMBRE), COLOR_CAT_BLUE, ICONO_CONFIG);
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 34);
-    tft.print("Placa: ");
+    tft.print(tr(TXT_CONFIG_PLACA));
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.print(BOARD_NAME);
 
@@ -196,23 +198,23 @@ void dibujarPantallaConfig() {
     // pantalla se quede sin espacio en las placas de 240x320.
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 50);
-    tft.print("Pant: ");
+    tft.print(tr(TXT_CONFIG_PANT));
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.print(TFT_PANEL_WIDTH);
     tft.print("x");
     tft.print(TFT_PANEL_HEIGHT);
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-    tft.print("  Touch: ");
+    tft.print(tr(TXT_CONFIG_TOUCH));
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-    tft.print(TOUCH_IS_CAPACITIVE ? "Capacitivo" : "Resistivo");
+    tft.print(TOUCH_IS_CAPACITIVE ? tr(TXT_CONFIG_CAPACITIVO) : tr(TXT_CONFIG_RESISTIVO));
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 66);
-    tft.print("SD: ");
+    tft.print(tr(TXT_CONFIG_SD));
     SD.end();
     bool sdOk = SD.begin(SD_CS_PIN);
     tft.setTextColor(sdOk ? COLOR_CAT_BLUE : COLOR_DANGER, COLOR_BG);
-    tft.print(sdOk ? "OK" : "No detectada");
+    tft.print(sdOk ? tr(TXT_CONFIG_SD_OK) : tr(TXT_CONFIG_SD_NO_DETECTADA));
 
     // Diagnostico de hardware: nada de esto pide libreria nueva, son
     // funciones que ya trae el core de Arduino-ESP32. Los numeros en
@@ -229,7 +231,7 @@ void dibujarPantallaConfig() {
     dibujarFilaAutosleep();
     dibujarFilaBorrar();
 
-    dibujarPieAyuda("Toca - / + para ajustar, o Borrar redes abajo");
+    dibujarPieAyuda(tr(TXT_CONFIG_PIE));
 
     #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
         touchDriver.reclaimBus();

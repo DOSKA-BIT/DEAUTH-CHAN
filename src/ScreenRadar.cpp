@@ -37,7 +37,10 @@ int anguloVisualBLE(const uint8_t* mac) {
 // todos en el mismo punto.
 void dibujarPantallaRadar() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("RADAR", COLOR_CAT_GREEN, ICONO_RADAR);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_RADAR_NOMBRE,
+    // "RADAR" en los dos idiomas) en vez de una clave de titulo aparte
+    // - mismo criterio que RASTREADOR mas abajo.
+    dibujarTituloSeccion(tr(TXT_HERR_RADAR_NOMBRE), COLOR_CAT_GREEN, ICONO_RADAR);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     int altoDisponible = alturaListado() - ALTO_TITULO_SECCION - ALTO_PIE_AYUDA;
@@ -112,15 +115,20 @@ void dibujarPantallaRadar() {
         }
     }
 
-    char pie[44];
     if (numVisibles == 0) {
-        snprintf(pie, sizeof(pie), "Buscando...");
+        dibujarPieAyuda(tr(TXT_RADAR_PIE_BUSCANDO));
     } else if (hayFindMyVisible) {
-        snprintf(pie, sizeof(pie), "Rojo = red Find My (no es 100%% un AirTag)");
+        dibujarPieAyuda(tr(TXT_RADAR_PIE_FINDMY));
     } else {
-        snprintf(pie, sizeof(pie), "%d cerca - centro = senial mas fuerte", numVisibles);
+        // Unico caso con un valor que cambia (numVisibles): el texto
+        // traducido viene con un "%d" adentro, como formato de
+        // snprintf - mismo patron que el resumen de escaneo en
+        // main.cpp, pero tomando el formato desde la tabla de idioma
+        // en vez de hardcodeado.
+        char pie[48];
+        snprintf(pie, sizeof(pie), tr(TXT_RADAR_PIE_CERCA), numVisibles);
+        dibujarPieAyuda(pie);
     }
-    dibujarPieAyuda(pie);
 }
 
 // ---------------------------------------------------------------------
@@ -195,7 +203,7 @@ static void dibujarRastreadorLista() {
     int cantidad = listaVisiblesRastreador(dispositivos, numDisp, indices);
 
     if (cantidad == 0) {
-        dibujarPieAyuda("Buscando dispositivos BLE...");
+        dibujarPieAyuda(tr(TXT_RASTREADOR_PIE_BUSCANDO));
         return;
     }
 
@@ -228,7 +236,7 @@ static void dibujarRastreadorLista() {
         dibujarTextoEspaciado(TFT_PANEL_WIDTH - 10 - anchoRssi, y + altoFila / 2 - 3, rssiTxt, color, COLOR_BG, 1);
     }
 
-    dibujarPieAyuda("Toca un dispositivo para rastrearlo");
+    dibujarPieAyuda(tr(TXT_RASTREADOR_PIE_LISTA));
 }
 
 static void dibujarRastreadorSiguiendo() {
@@ -250,8 +258,8 @@ static void dibujarRastreadorSiguiendo() {
         // reemplaza el slot mas viejo cuando esta lleno, ver
         // BLEScanner::onDispositivoVisto) pero si justo paso, avisamos
         // en vez de mostrar numeros viejos como si fueran en vivo.
-        dibujarTextoEspaciado(10, top + 30, "DISPOSITIVO PERDIDO", COLOR_DANGER, COLOR_BG, 2);
-        dibujarPieAyuda("Toca la pantalla para volver a la lista");
+        dibujarTextoEspaciado(10, top + 30, tr(TXT_RASTREADOR_PERDIDO), COLOR_DANGER, COLOR_BG, 2);
+        dibujarPieAyuda(tr(TXT_RASTREADOR_PIE_VOLVER));
         return;
     }
 
@@ -308,26 +316,29 @@ static void dibujarRastreadorSiguiendo() {
     const char* textoTrend;
     uint16_t colorTrend;
     if (antiguedad > 5000) {
-        textoTrend = "SIN SENIAL RECIENTE";
+        textoTrend = tr(TXT_RASTREADOR_SIN_SENIAL);
         colorTrend = COLOR_TEXT_DIM;
     } else if (rastreadorTrend > 0) {
-        textoTrend = "ACERCANDOSE";
+        textoTrend = tr(TXT_RASTREADOR_ACERCANDOSE);
         colorTrend = COLOR_CAT_GREEN;
     } else if (rastreadorTrend < 0) {
-        textoTrend = "ALEJANDOSE";
+        textoTrend = tr(TXT_RASTREADOR_ALEJANDOSE);
         colorTrend = COLOR_DANGER;
     } else {
-        textoTrend = "SIN CAMBIOS";
+        textoTrend = tr(TXT_RASTREADOR_SIN_CAMBIOS);
         colorTrend = COLOR_TEXT_DIM;
     }
     dibujarTextoEspaciado(10, yBarra + 32, textoTrend, colorTrend, COLOR_BG, 2);
 
-    dibujarPieAyuda("Toca la pantalla para volver a la lista");
+    dibujarPieAyuda(tr(TXT_RASTREADOR_PIE_VOLVER));
 }
 
 void dibujarPantallaRastreador() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("RASTREADOR", COLOR_CAT_GREEN, ICONO_RADAR);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_RASTREADOR_NOMBRE)
+    // en vez de una clave de titulo aparte - mismo texto que ya se ve
+    // en la lista de Herramientas, nada que mantener duplicado.
+    dibujarTituloSeccion(tr(TXT_HERR_RASTREADOR_NOMBRE), COLOR_CAT_GREEN, ICONO_RADAR);
 
     if (rastreadorModo == 0) {
         dibujarRastreadorLista();
