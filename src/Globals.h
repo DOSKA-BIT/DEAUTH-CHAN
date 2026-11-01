@@ -105,6 +105,7 @@ enum MenuScreen {
     SCREEN_ANALIZADOR,
     SCREEN_DUPLICADOS,
     SCREEN_RADAR,
+    SCREEN_RASTREADOR,
     SCREEN_GAME,
     SCREEN_IDIOMA
 };
@@ -226,6 +227,15 @@ void manejarToqueWardriving(int x, int y);
 // ---- Pantalla de la categoria RADAR (ScreenRadar.cpp) ----
 int anguloVisualBLE(const uint8_t* mac);
 void dibujarPantallaRadar();
+// RASTREADOR (tracker finder): elegis un dispositivo BLE puntual de la
+// lista (los mismos que ve RADAR) y la pantalla se queda mostrando su
+// RSSI en vivo tipo "mas cerca/mas lejos" para ubicarlo caminando -
+// sigue siendo pura recepcion pasiva, lo unico que cambia es que en
+// vez de pintar TODOS los dispositivos en el barrido circular, esta
+// pantalla sigue a uno solo con un medidor grande. Ver el comentario
+// largo junto a rastreadorModo en ScreenRadar.cpp.
+void dibujarPantallaRastreador();
+void manejarToqueRastreador(int x, int y);
 
 // ---- Pantalla de la categoria AJUSTES (ScreenAjustes.cpp) ----
 void actualizarDiagnosticoHardware();

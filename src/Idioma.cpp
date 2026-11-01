@@ -44,6 +44,8 @@ static const char* ES[CANTIDAD_TEXTOS] = {
     "Guardar ubicacion + redes en SD",             // TXT_HERR_WARDRIVE_DESC
     "RADAR",                                       // TXT_HERR_RADAR_NOMBRE
     "BLE cerca + red Find My de Apple",            // TXT_HERR_RADAR_DESC
+    "RASTREADOR",                                  // TXT_HERR_RASTREADOR_NOMBRE
+    "Ubicar un dispositivo BLE por senial",        // TXT_HERR_RASTREADOR_DESC
     "CONFIG",                                      // TXT_HERR_CONFIG_NOMBRE
     "Datos de la placa y la SD",                   // TXT_HERR_CONFIG_DESC
     "IDIOMA",                                      // TXT_HERR_IDIOMA_NOMBRE
@@ -94,6 +96,8 @@ static const char* EN[CANTIDAD_TEXTOS] = {
     "Save location + networks to the SD card",     // TXT_HERR_WARDRIVE_DESC
     "RADAR",                                       // TXT_HERR_RADAR_NOMBRE
     "Nearby BLE + Apple's Find My network",         // TXT_HERR_RADAR_DESC
+    "TRACKER FINDER",                              // TXT_HERR_RASTREADOR_NOMBRE
+    "Locate a BLE device by signal strength",      // TXT_HERR_RASTREADOR_DESC
     "CONFIG",                                      // TXT_HERR_CONFIG_NOMBRE
     "Board info and SD card",                      // TXT_HERR_CONFIG_DESC
     "LANGUAGE",                                    // TXT_HERR_IDIOMA_NOMBRE

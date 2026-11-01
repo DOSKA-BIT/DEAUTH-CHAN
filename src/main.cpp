@@ -194,6 +194,12 @@ Herramienta herramientas[] = {
     {TXT_HERR_GAME_NOMBRE,       TXT_HERR_GAME_DESC,       CAT_WIFI,       SCREEN_GAME,      COLOR_CAT_WHITE,  ICONO_ESPADA,    0, 0},
     {TXT_HERR_WARDRIVE_NOMBRE,   TXT_HERR_WARDRIVE_DESC,   CAT_WARDRIVING, SCREEN_WARDRIVE,  COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0},
     {TXT_HERR_RADAR_NOMBRE,      TXT_HERR_RADAR_DESC,      CAT_RADAR,      SCREEN_RADAR,     COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0},
+    // Segunda herramienta de RADAR: rastreador de un dispositivo BLE
+    // puntual por senial (ver dibujarPantallaRastreador() en
+    // ScreenRadar.cpp). Reusa el icono de RADAR a proposito (mismo
+    // criterio que ANALIZADOR/CANALES e IDIOMA/CONFIG) en vez de
+    // dibujar uno nuevo para una pantalla de la misma categoria.
+    {TXT_HERR_RASTREADOR_NOMBRE, TXT_HERR_RASTREADOR_DESC, CAT_RADAR,      SCREEN_RASTREADOR,COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0},
     {TXT_HERR_CONFIG_NOMBRE,     TXT_HERR_CONFIG_DESC,     CAT_AJUSTES,    SCREEN_CONFIG,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
     // Pedido del usuario: el selector de idioma vive al lado de CONFIG,
     // dentro de la misma categoria AJUSTES (ver dibujarPantallaIdioma()/
@@ -259,6 +265,9 @@ void manejarToque(int x, int y) {
             break;
         case SCREEN_CONFIG:
             manejarToqueConfig(x, y);
+            break;
+        case SCREEN_RASTREADOR:
+            manejarToqueRastreador(x, y);
             break;
         case SCREEN_IDIOMA:
             manejarToqueIdioma(x, y);
@@ -605,6 +614,9 @@ void loop() {
                 case SCREEN_RADAR:
                     dibujarPantallaRadar();
                     break;
+                case SCREEN_RASTREADOR:
+                    dibujarPantallaRastreador();
+                    break;
                 case SCREEN_GAME:
                     dibujarPantallaGame();
                     break;
@@ -669,6 +681,21 @@ void loop() {
                 ultimoRefrescoRadar = ahoraRadar;
                 if (!cambioPantalla) {
                     dibujarPantallaRadar();
+                }
+            }
+        }
+
+        // Mismo patron que RADAR: RASTREADOR tambien vive de datos que
+        // se acumulan solos de fondo (el mismo callback de BLE), tanto
+        // en su lista de seleccion como en el medidor de senial en
+        // vivo una vez que elegiste un dispositivo.
+        if (pantallaActual == SCREEN_RASTREADOR) {
+            static unsigned long ultimoRefrescoRastreador = 0;
+            unsigned long ahoraRastreador = millis();
+            if (cambioPantalla || ahoraRastreador - ultimoRefrescoRastreador >= RADAR_REFRESCO_MS) {
+                ultimoRefrescoRastreador = ahoraRastreador;
+                if (!cambioPantalla) {
+                    dibujarPantallaRastreador();
                 }
             }
         }
