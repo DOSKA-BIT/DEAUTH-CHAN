@@ -46,11 +46,11 @@ public:
     // Vacia el historial completo, en RAM y en la SD - para el boton
     // "Borrar redes guardadas" de AJUSTES. Es una forma de limpiar la
     // memoria de redes conocidas sin tener que reflashear ni sacar la
-    // tarjeta a mano. Reutiliza guardarEnSD() (con numStats en 0) en
-    // vez de un SD.remove() aparte: cargarDesdeSD() solo lee
-    // "numStats" registros del archivo, asi que un numStats=0 alcanza
-    // para que el proximo arranque no traiga nada de vuelta, sin
-    // importar si quedan bytes viejos despues en el archivo.
+    // tarjeta a mano. Reutiliza guardarEnSD() (con numStats en 0), que
+    // ahora borra el archivo entero antes de volver a crearlo (ver el
+    // comentario largo en el .cpp) - asi lo que queda en la SD es
+    // siempre exactamente lo que hay en memoria, sin bytes viejos
+    // colgando de un archivo mas largo que el nuevo.
     void borrarHistorial();
 
 private:

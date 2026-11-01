@@ -63,6 +63,28 @@ void Learning::guardarEnSD() {
     // si el touch se quedo con el bus VSPI compartido.
     SD.end();
     if (!SD.begin(SD_CS_PIN)) return;
+
+    // SD.remove() antes de volver a crear el archivo - bug real
+    // reportado por el usuario ("Borrar redes guardadas" dejaba
+    // algunas redes viejas despues de reiniciar la placa). Antes esto
+    // abria directo con FILE_WRITE sobre el archivo ya existente,
+    // confiando en que una escritura mas CORTA que el archivo viejo
+    // (como numStats=0 despues de un borrado, contra un archivo que
+    // tenia varias redes guardadas) de alguna forma dejaba el resto
+    // del archivo en un estado inofensivo. Esa suposicion dependia de
+    // como interprete exactamente FILE_WRITE la implementacion de SD
+    // de turno (si guarda la posicion en el byte 0 sin truncar el
+    // archivo, los bytes viejos que sobran al final quedan colgados;
+    // si la apertura fuera de "agregar al final" en vez de
+    // sobreescribir desde el principio, el header nuevo ni siquiera
+    // queda al principio del archivo) - nada de eso esta garantizado
+    // por la documentacion, asi que no hay que confiar en eso. Borrar
+    // el archivo entero y crearlo de cero cada vez que se guarda saca
+    // esa ambiguedad por completo: lo que queda en la SD es siempre
+    // EXACTAMENTE lo que hay en memoria en este momento, ni un byte
+    // viejo de mas.
+    SD.remove("/redes_conocidas.bin");
+
     File file = SD.open("/redes_conocidas.bin", FILE_WRITE);
     if (file) {
         file.write((uint8_t*)&numStats, sizeof(numStats));
