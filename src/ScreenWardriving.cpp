@@ -4,22 +4,24 @@
 
 void dibujarPantallaWardrive() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("WARDRIVE", COLOR_CAT_VIOLET, ICONO_WARDRIVE);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_WARDRIVE_NOMBRE,
+    // "WARDRIVE" en los dos idiomas) en vez de una clave de titulo aparte.
+    dibujarTituloSeccion(tr(TXT_HERR_WARDRIVE_NOMBRE), COLOR_CAT_VIOLET, ICONO_WARDRIVE);
 
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 35);
-    tft.print("GPS: ");
+    tft.print(tr(TXT_WARDRIVE_GPS));
     GPSData pos = gps.getData();
     tft.setTextColor(pos.valid ? COLOR_CAT_VIOLET : COLOR_WARN, COLOR_BG);
-    tft.print(pos.valid ? "FIX" : "SIN FIX");
+    tft.print(pos.valid ? tr(TXT_WARDRIVE_FIX) : tr(TXT_WARDRIVE_SIN_FIX));
 
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 55);
-    tft.print("Satelites: ");
+    tft.print(tr(TXT_WARDRIVE_SATELITES));
     tft.print(pos.satellites);
 
     tft.setCursor(10, CONTENT_TOP + 75);
-    tft.print("Redes guardadas: ");
+    tft.print(tr(TXT_WARDRIVE_REDES_GUARDADAS));
     // Wardriving ya lleva la cuenta el solo, sin releer wardriving.csv
     // ni remontar la SD en cada redibujado (ver Wardriving::
     // getContadorRedes()).
@@ -30,37 +32,40 @@ void dibujarPantallaWardrive() {
     // reinicio.
     tft.setCursor(10, CONTENT_TOP + 95);
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-    tft.print("Filtro [toca]: ");
+    tft.print(tr(TXT_WARDRIVE_FILTRO));
     tft.setTextColor(COLOR_CAT_VIOLET, COLOR_BG);
     if (filtroWardrive == 0) {
-        tft.print("Todas");
+        tft.print(tr(TXT_WARDRIVE_FILTRO_TODAS));
     } else if (filtroWardrive == 1) {
-        tft.print("Solo abiertas");
+        tft.print(tr(TXT_WARDRIVE_FILTRO_ABIERTAS));
     } else {
-        tft.print("Solo con clave");
+        tft.print(tr(TXT_WARDRIVE_FILTRO_CLAVE));
     }
 
     tft.setCursor(10, CONTENT_TOP + 120);
     tft.setTextColor(COLOR_WARN, COLOR_BG);
-    tft.print("[Toca para exportar KML]");
+    tft.print(tr(TXT_WARDRIVE_EXPORTAR));
 
     // Resultado del ultimo export, para que tocar el boton de arriba
     // no se sienta como que no paso nada.
     tft.setCursor(10, CONTENT_TOP + 145);
     if (ultimoExportKML == -2) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.print("(todavia no exportaste nada)");
+        tft.print(tr(TXT_WARDRIVE_EXPORT_NADA));
     } else if (ultimoExportKML < 0) {
         tft.setTextColor(COLOR_DANGER, COLOR_BG);
-        tft.print("Error: sin SD o sin datos");
+        tft.print(tr(TXT_WARDRIVE_EXPORT_ERROR));
     } else {
         tft.setTextColor(ultimoExportKML > 0 ? COLOR_CAT_VIOLET : COLOR_WARN, COLOR_BG);
+        // "wardriving.kml" es el nombre real del archivo en la SD -
+        // no pasa por tr() a proposito, un nombre de archivo no se
+        // traduce.
         tft.print("wardriving.kml: ");
         tft.print(ultimoExportKML);
-        tft.print(" puntos");
+        tft.print(tr(TXT_WARDRIVE_PUNTOS));
     }
 
-    dibujarPieAyuda("Guarda cada red vista, con GPS si hay fix");
+    dibujarPieAyuda(tr(TXT_WARDRIVE_PIE));
 
     #if !TOUCH_IS_CAPACITIVE && !TOUCH_SHARES_TFT_BUS
         touchDriver.reclaimBus();

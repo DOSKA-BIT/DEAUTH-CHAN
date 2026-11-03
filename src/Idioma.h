@@ -130,6 +130,109 @@ enum TextoId {
     TXT_CONFIG_UPTIME,
     TXT_CONFIG_CPU,
 
+    // Pantalla WARDRIVE (ScreenWardriving.cpp) - Fase 2
+    TXT_WARDRIVE_GPS,
+    TXT_WARDRIVE_FIX,
+    TXT_WARDRIVE_SIN_FIX,
+    TXT_WARDRIVE_SATELITES,
+    TXT_WARDRIVE_REDES_GUARDADAS,
+    TXT_WARDRIVE_FILTRO,
+    TXT_WARDRIVE_FILTRO_TODAS,
+    TXT_WARDRIVE_FILTRO_ABIERTAS,
+    TXT_WARDRIVE_FILTRO_CLAVE,
+    TXT_WARDRIVE_EXPORTAR,
+    TXT_WARDRIVE_EXPORT_NADA,
+    TXT_WARDRIVE_EXPORT_ERROR,
+    TXT_WARDRIVE_PUNTOS,
+    TXT_WARDRIVE_PIE,
+
+    // Pantalla ESCANEAR (ScreenWifi.cpp) - Fase 2
+    TXT_SCAN_ESCANEANDO,
+    TXT_SCAN_PIE_ESPERANDO,
+    TXT_SCAN_ESCUCHANDO_CLIENTES,
+    TXT_SCAN_S_RESTANTES,
+    TXT_SCAN_PIE_PASIVO_CLIENTES,
+    TXT_SCAN_CLIENTES_DE,
+    TXT_SCAN_NADIE_HABLANDO,
+    TXT_SCAN_MAS_PREFIJO,
+    TXT_SCAN_MAS_SUFIJO,
+    TXT_SCAN_PIE_VOLVER,
+    TXT_SCAN_TOCA_ESCANEAR,
+    TXT_SCAN_PIE_PASIVO_VACIO,
+    TXT_SCAN_PIE_TOCA_RED,
+
+    // Compartida entre varias pantallas de WIFI (red/SSID sin nombre)
+    TXT_OCULTA,
+
+    // Pantalla STATS (ScreenWifi.cpp) - Fase 2
+    TXT_STATS_REDES_CONOCIDAS,
+    TXT_STATS_VISTAS_ESCANEO,
+    TXT_STATS_NUEVAS_DESCUBIERTAS,
+    TXT_STATS_ULTIMA_RED_TOP,
+    TXT_STATS_VISTA_PREFIJO,
+    TXT_STATS_VISTA_SUFIJO,
+    TXT_STATS_PIE,
+
+    // Criterios de orden de CONOCIDAS (nombreOrdenConocidas(), ScreenWifi.cpp)
+    TXT_ORDEN_SENIAL,
+    TXT_ORDEN_VISTAS,
+    TXT_ORDEN_NOMBRE,
+
+    // Pantalla CONOCIDAS (ScreenWifi.cpp) - Fase 2
+    TXT_CONOCIDAS_ORDEN,
+    TXT_CONOCIDAS_TOCAR_CAMBIAR,
+    TXT_CONOCIDAS_VACIO,
+    TXT_CONOCIDAS_PIE_VACIO,
+    TXT_CONOCIDAS_MAS_FORMAT,
+    TXT_CONOCIDAS_PIE_CAMBIAR,
+
+    // Pantalla EVENTOS (ScreenWifi.cpp) - Fase 2. El contenido de cada
+    // evento guardado (eventos.registrar()) NO pasa por aca - queda
+    // igual que estaba, mismo criterio que el resto de los mensajes
+    // que se escriben en la SD (ver el comentario largo en
+    // ScreenWardriving.cpp sobre nombres de archivo).
+    TXT_EVENTOS_EXPORTAR,
+    TXT_EVENTOS_EXPORT_ERROR,
+    TXT_EVENTOS_LINEAS,
+    TXT_EVENTOS_VACIO,
+    TXT_EVENTOS_PIE_VACIO,
+    TXT_EVENTOS_MAS_FORMAT,
+    TXT_EVENTOS_PIE_RECIENTE,
+
+    // Pantalla MONITOR (ScreenWifi.cpp) - Fase 2
+    TXT_MONITOR_DEAUTH,
+    TXT_MONITOR_DISASSOC,
+    TXT_MONITOR_PCAP,
+    TXT_MONITOR_PCAP_ON,
+    TXT_MONITOR_PCAP_OFF,
+    TXT_MONITOR_PAQUETES_GUARDADOS,
+    TXT_MONITOR_VACIO,
+    TXT_MONITOR_PIE_PASIVO,
+    TXT_MONITOR_DE,
+    TXT_MONITOR_MAS_FORMAT,
+
+    // Compartida entre CANALES y DUPLICADO (las dos necesitan un
+    // escaneo previo para mostrar algo)
+    TXT_NECESITA_ESCANEO,
+    TXT_PIE_ANDA_ESCANEAR,
+
+    // Pantalla CANALES (ScreenWifi.cpp) - Fase 2
+    TXT_CANALES_HISTORICO_FORMAT,
+    TXT_CANALES_PIE,
+
+    // Pantalla ANALIZADOR (ScreenWifi.cpp) - Fase 2
+    TXT_ANALIZADOR_PIE,
+
+    // Pantalla DUPLICADO (ScreenWifi.cpp) - Fase 2
+    TXT_DUPLICADO_NINGUNO,
+    TXT_DUPLICADO_PIE_NINGUNO,
+    TXT_DUPLICADO_MAS_FORMAT,
+    TXT_DUPLICADO_PIE_MESH,
+
+    // Pantalla GAME (ScreenWifi.cpp) - Fase 2
+    TXT_GAME_PROXIMAMENTE,
+    TXT_GAME_PIE,
+
     // Pantalla IDIOMA (ScreenAjustes.cpp) - los nombres de cada idioma
     // ("ESPANOL"/"ENGLISH") NO son claves de esta lista a proposito:
     // un selector de idioma siempre muestra cada opcion en su propio

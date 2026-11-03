@@ -9,7 +9,8 @@
 
 void dibujarListaRedes() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("ESCANEAR", COLOR_CAT_CYAN, ICONO_ESCANEAR);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_ESCANEAR_NOMBRE).
+    dibujarTituloSeccion(tr(TXT_HERR_ESCANEAR_NOMBRE), COLOR_CAT_CYAN, ICONO_ESCANEAR);
 
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
@@ -18,8 +19,8 @@ void dibujarListaRedes() {
     if (escaneando) {
         tft.setTextColor(COLOR_WARN, COLOR_BG);
         tft.setCursor(10, top + 10);
-        tft.print("Escaneando...");
-        dibujarPieAyuda("Esperando resultados...");
+        tft.print(tr(TXT_SCAN_ESCANEANDO));
+        dibujarPieAyuda(tr(TXT_SCAN_PIE_ESPERANDO));
         return;
     }
 
@@ -28,7 +29,7 @@ void dibujarListaRedes() {
     if (scanner.conteoEnProgreso()) {
         tft.setTextColor(COLOR_WARN, COLOR_BG);
         tft.setCursor(10, top + 10);
-        tft.print("Escuchando clientes de");
+        tft.print(tr(TXT_SCAN_ESCUCHANDO_CLIENTES));
         tft.setTextColor(COLOR_TEXT, COLOR_BG);
         tft.setCursor(10, top + 30);
         if (redIndiceConteo >= 0 && redIndiceConteo < numRedes) {
@@ -37,8 +38,8 @@ void dibujarListaRedes() {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(10, top + 50);
         tft.print((scanner.tiempoRestanteConteo() / 1000) + 1);
-        tft.print("s restantes");
-        dibujarPieAyuda("Pasivo: solo escucha, no se conecta");
+        tft.print(tr(TXT_SCAN_S_RESTANTES));
+        dibujarPieAyuda(tr(TXT_SCAN_PIE_PASIVO_CLIENTES));
         return;
     }
 
@@ -48,7 +49,7 @@ void dibujarListaRedes() {
     if (redIndiceConteo >= 0 && redIndiceConteo < numRedes) {
         tft.setTextColor(COLOR_CAT_CYAN, COLOR_BG);
         tft.setCursor(5, top - 6);
-        tft.print("Clientes de ");
+        tft.print(tr(TXT_SCAN_CLIENTES_DE));
         tft.print(redes[redIndiceConteo].ssid);
 
         int total = 0;
@@ -57,7 +58,7 @@ void dibujarListaRedes() {
         if (total == 0) {
             tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
             tft.setCursor(10, top + 16);
-            tft.print("Nadie hablando con esta red ahora");
+            tft.print(tr(TXT_SCAN_NADIE_HABLANDO));
         } else {
             int maxVisibles = (alturaListado() - ALTO_TITULO_SECCION - 36 - ALTO_PIE_AYUDA) / 18;
             int yOffset = top + 14;
@@ -77,13 +78,13 @@ void dibujarListaRedes() {
             if (total > mostradas) {
                 tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
                 tft.setCursor(5, yOffset);
-                tft.print("+ ");
+                tft.print(tr(TXT_SCAN_MAS_PREFIJO));
                 tft.print(total - mostradas);
-                tft.print(" mas");
+                tft.print(tr(TXT_SCAN_MAS_SUFIJO));
             }
         }
 
-        dibujarPieAyuda("Toca para volver a la lista");
+        dibujarPieAyuda(tr(TXT_SCAN_PIE_VOLVER));
         return;
     }
 
@@ -97,7 +98,7 @@ void dibujarListaRedes() {
 
         tft.setTextColor(colorFila, COLOR_BG);
         tft.setCursor(xTexto, yOffset);
-        tft.print(strlen(redes[i].ssid) == 0 ? "*OCULTA*" : redes[i].ssid);
+        tft.print(strlen(redes[i].ssid) == 0 ? tr(TXT_OCULTA) : redes[i].ssid);
 
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(TFT_PANEL_WIDTH - 70, yOffset);
@@ -109,28 +110,29 @@ void dibujarListaRedes() {
     if (numRedes == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(10, top + 10);
-        tft.print("Toca aca para escanear");
-        dibujarPieAyuda("Pasivo: no se conecta a ninguna red");
+        tft.print(tr(TXT_SCAN_TOCA_ESCANEAR));
+        dibujarPieAyuda(tr(TXT_SCAN_PIE_PASIVO_VACIO));
     } else {
-        dibujarPieAyuda("Toca una red para ver sus clientes");
+        dibujarPieAyuda(tr(TXT_SCAN_PIE_TOCA_RED));
     }
 }
 
 void dibujarPantallaStats() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("STATS", COLOR_CAT_YELLOW, ICONO_STATS);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_STATS_NOMBRE).
+    dibujarTituloSeccion(tr(TXT_HERR_STATS_NOMBRE), COLOR_CAT_YELLOW, ICONO_STATS);
 
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.setCursor(10, CONTENT_TOP + 35);
-    tft.print("Redes conocidas: ");
+    tft.print(tr(TXT_STATS_REDES_CONOCIDAS));
     tft.print(aprendizaje.getTotalRedesConocidas());
 
     tft.setCursor(10, CONTENT_TOP + 55);
-    tft.print("Vistas este escaneo: ");
+    tft.print(tr(TXT_STATS_VISTAS_ESCANEO));
     tft.print(numRedes);
 
     tft.setCursor(10, CONTENT_TOP + 75);
-    tft.print("Nuevas descubiertas: ");
+    tft.print(tr(TXT_STATS_NUEVAS_DESCUBIERTAS));
     tft.print(mascota.getRedesNuevas());
 
     if (numRedes > 0) {
@@ -138,30 +140,31 @@ void dibujarPantallaStats() {
         if (s) {
             tft.setCursor(10, CONTENT_TOP + 105);
             tft.setTextColor(COLOR_WARN, COLOR_BG);
-            tft.print("Ultima red top: ");
+            tft.print(tr(TXT_STATS_ULTIMA_RED_TOP));
             tft.print(s->ssid);
             tft.setCursor(10, CONTENT_TOP + 125);
             tft.setTextColor(COLOR_TEXT, COLOR_BG);
-            tft.print("Vista ");
+            tft.print(tr(TXT_STATS_VISTA_PREFIJO));
             tft.print(s->vecesVista);
-            tft.print(" veces");
+            tft.print(tr(TXT_STATS_VISTA_SUFIJO));
         }
     }
 
-    dibujarPieAyuda("Se actualiza con cada escaneo");
+    dibujarPieAyuda(tr(TXT_STATS_PIE));
 }
 
 const char* nombreOrdenConocidas(int orden) {
     switch (orden) {
-        case 1: return "VISTAS";
-        case 2: return "NOMBRE";
-        default: return "SENIAL";
+        case 1: return tr(TXT_ORDEN_VISTAS);
+        case 2: return tr(TXT_ORDEN_NOMBRE);
+        default: return tr(TXT_ORDEN_SENIAL);
     }
 }
 
 void dibujarPantallaConocidas() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("CONOCIDAS", COLOR_CAT_WHITE, ICONO_CONOCIDAS);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_CONOCIDAS_NOMBRE).
+    dibujarTituloSeccion(tr(TXT_HERR_CONOCIDAS_NOMBRE), COLOR_CAT_WHITE, ICONO_CONOCIDAS);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     // Renglon de "Orden: X" tocable, mismo criterio que el boton de
@@ -171,11 +174,11 @@ void dibujarPantallaConocidas() {
     // coincida con lo que se ve dibujado aca.
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(8, top + 4);
-    tft.print("Orden: ");
+    tft.print(tr(TXT_CONOCIDAS_ORDEN));
     tft.setTextColor(COLOR_CAT_WHITE, COLOR_BG);
     tft.print(nombreOrdenConocidas(ordenConocidas));
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-    tft.print("  (tocar para cambiar)");
+    tft.print(tr(TXT_CONOCIDAS_TOCAR_CAMBIAR));
     dibujarLineaPunteada(5, top + ALTO_BOTON_ORDEN, TFT_PANEL_WIDTH - 10, COLOR_ACCENT_DIM);
     top += ALTO_BOTON_ORDEN;
 
@@ -183,8 +186,8 @@ void dibujarPantallaConocidas() {
     if (total == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(10, top + 10);
-        tft.print("Todavia no hay redes guardadas");
-        dibujarPieAyuda("Escanea para empezar a guardar redes");
+        tft.print(tr(TXT_CONOCIDAS_VACIO));
+        dibujarPieAyuda(tr(TXT_CONOCIDAS_PIE_VACIO));
         return;
     }
 
@@ -240,7 +243,7 @@ void dibujarPantallaConocidas() {
 
         tft.setTextColor(COLOR_TEXT, COLOR_BG);
         tft.setCursor(5 + ICONO_ANCHO + 4, yOffset);
-        tft.print(strlen(r.ssid) > 0 ? r.ssid : "*OCULTA*");
+        tft.print(strlen(r.ssid) > 0 ? r.ssid : tr(TXT_OCULTA));
 
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(TFT_PANEL_WIDTH - 95, yOffset);
@@ -252,17 +255,18 @@ void dibujarPantallaConocidas() {
     }
 
     if (total > mostradas) {
-        char masTexto[32];
-        snprintf(masTexto, sizeof(masTexto), "+ %d mas, por %s", total - mostradas, nombreOrdenConocidas(ordenConocidas));
+        char masTexto[40];
+        snprintf(masTexto, sizeof(masTexto), tr(TXT_CONOCIDAS_MAS_FORMAT), total - mostradas, nombreOrdenConocidas(ordenConocidas));
         dibujarPieAyuda(masTexto);
     } else {
-        dibujarPieAyuda("Toca 'Orden' arriba para cambiar el criterio");
+        dibujarPieAyuda(tr(TXT_CONOCIDAS_PIE_CAMBIAR));
     }
 }
 
 void dibujarPantallaEventos() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("EVENTOS", COLOR_CAT_BLUE, ICONO_EVENTOS);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_EVENTOS_NOMBRE).
+    dibujarTituloSeccion(tr(TXT_HERR_EVENTOS_NOMBRE), COLOR_CAT_BLUE, ICONO_EVENTOS);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     // Boton fijo arriba de la lista para exportar /resumen.txt con
@@ -272,18 +276,21 @@ void dibujarPantallaEventos() {
     // dibujado.
     tft.setTextColor(COLOR_WARN, COLOR_BG);
     tft.setCursor(10, top + 2);
-    tft.print("[Toca para exportar resumen .txt]");
+    tft.print(tr(TXT_EVENTOS_EXPORTAR));
 
     if (ultimoExportResumen < 0 && ultimoExportResumen != -2) {
         tft.setTextColor(COLOR_DANGER, COLOR_BG);
         tft.setCursor(10, top + 14);
-        tft.print("Error: la SD no respondio");
+        tft.print(tr(TXT_EVENTOS_EXPORT_ERROR));
     } else if (ultimoExportResumen >= 0) {
         tft.setTextColor(COLOR_CAT_BLUE, COLOR_BG);
         tft.setCursor(10, top + 14);
+        // "resumen.txt" es el nombre real del archivo en la SD - no
+        // pasa por tr(), un nombre de archivo no se traduce (mismo
+        // criterio que "wardriving.kml" en ScreenWardriving.cpp).
         tft.print("resumen.txt: ");
         tft.print(ultimoExportResumen);
-        tft.print(" lineas");
+        tft.print(tr(TXT_EVENTOS_LINEAS));
     }
 
     dibujarLineaPunteada(10, top + ALTO_BOTON_EXPORTAR, TFT_PANEL_WIDTH - 20, COLOR_ACCENT_DIM);
@@ -295,8 +302,8 @@ void dibujarPantallaEventos() {
     if (total == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(10, top2 + 10);
-        tft.print("Todavia no paso nada en esta sesion");
-        dibujarPieAyuda("El historial empieza al encender");
+        tft.print(tr(TXT_EVENTOS_VACIO));
+        dibujarPieAyuda(tr(TXT_EVENTOS_PIE_VACIO));
         return;
     }
 
@@ -325,16 +332,17 @@ void dibujarPantallaEventos() {
 
     if (total > mostradas) {
         char masTexto[32];
-        snprintf(masTexto, sizeof(masTexto), "+ %d mas viejos", total - mostradas);
+        snprintf(masTexto, sizeof(masTexto), tr(TXT_EVENTOS_MAS_FORMAT), total - mostradas);
         dibujarPieAyuda(masTexto);
     } else {
-        dibujarPieAyuda("El mas reciente arriba de todo");
+        dibujarPieAyuda(tr(TXT_EVENTOS_PIE_RECIENTE));
     }
 }
 
 void dibujarPantallaMonitor() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("MONITOR", COLOR_CAT_RED, ICONO_MONITOR);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_MONITOR_NOMBRE).
+    dibujarTituloSeccion(tr(TXT_HERR_MONITOR_NOMBRE), COLOR_CAT_RED, ICONO_MONITOR);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     unsigned long totalDeauth = 0, totalDisassoc = 0;
@@ -342,13 +350,13 @@ void dibujarPantallaMonitor() {
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(5, top);
-    tft.print("Deauth: ");
+    tft.print(tr(TXT_MONITOR_DEAUTH));
     tft.setTextColor(totalDeauth > 0 ? COLOR_DANGER : COLOR_TEXT, COLOR_BG);
     tft.print(totalDeauth);
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(TFT_PANEL_WIDTH / 2 + 5, top);
-    tft.print("Disassoc: ");
+    tft.print(tr(TXT_MONITOR_DISASSOC));
     tft.setTextColor(totalDisassoc > 0 ? COLOR_WARN : COLOR_TEXT, COLOR_BG);
     tft.print(totalDisassoc);
 
@@ -361,13 +369,13 @@ void dibujarPantallaMonitor() {
     bool pcapOn = scanner.pcapEstaActivo();
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(5, top + 22);
-    tft.print("PCAP: ");
+    tft.print(tr(TXT_MONITOR_PCAP));
     tft.setTextColor(pcapOn ? COLOR_DANGER : COLOR_TEXT_DIM, COLOR_BG);
-    tft.print(pcapOn ? "grabando (toca p/parar)" : "apagado (toca p/grabar)");
+    tft.print(pcapOn ? tr(TXT_MONITOR_PCAP_ON) : tr(TXT_MONITOR_PCAP_OFF));
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(5, top + 34);
-    tft.print("Paquetes guardados: ");
+    tft.print(tr(TXT_MONITOR_PAQUETES_GUARDADOS));
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.print(scanner.getPCAPCapturados());
 
@@ -379,8 +387,8 @@ void dibujarPantallaMonitor() {
     if (total == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(10, top + ALTO_BLOQUE_MONITOR + 10);
-        tft.print("Nada detectado por ahora");
-        dibujarPieAyuda("Pasivo: solo mira, no transmite nada");
+        tft.print(tr(TXT_MONITOR_VACIO));
+        dibujarPieAyuda(tr(TXT_MONITOR_PIE_PASIVO));
         return;
     }
 
@@ -409,9 +417,13 @@ void dibujarPantallaMonitor() {
 
         tft.setTextColor(colorFila, COLOR_BG);
         tft.setCursor(xTexto, yOffset + 16);
+        // "DISASSOC"/"DEAUTH" son los nombres del tipo de trama 802.11
+        // (terminologia tecnica del protocolo), no pasan por tr() a
+        // proposito - mismo criterio que "BCN"/"DEA"/"PRB" en
+        // ANALIZADOR mas abajo.
         tft.print(a.esDisassoc ? "DISASSOC" : "DEAUTH");
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
-        tft.print("  de ..");
+        tft.print(tr(TXT_MONITOR_DE));
         char macBuf[6];
         sprintf(macBuf, "%02X%02X", a.origen[4], a.origen[5]);
         tft.print(macBuf);
@@ -421,10 +433,10 @@ void dibujarPantallaMonitor() {
 
     if (total > mostradas) {
         char masTexto[32];
-        snprintf(masTexto, sizeof(masTexto), "+ %d mas", total - mostradas);
+        snprintf(masTexto, sizeof(masTexto), tr(TXT_MONITOR_MAS_FORMAT), total - mostradas);
         dibujarPieAyuda(masTexto);
     } else {
-        dibujarPieAyuda("Pasivo: solo mira, no transmite nada");
+        dibujarPieAyuda(tr(TXT_MONITOR_PIE_PASIVO));
     }
 }
 
@@ -433,14 +445,15 @@ void dibujarPantallaMonitor() {
 // horizontales.
 void dibujarPantallaCanales() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("CANALES", COLOR_CAT_YELLOW, ICONO_CANALES);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_CANALES_NOMBRE).
+    dibujarTituloSeccion(tr(TXT_HERR_CANALES_NOMBRE), COLOR_CAT_YELLOW, ICONO_CANALES);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     if (numRedes == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(10, top + 10);
-        tft.print("Hace falta un escaneo primero");
-        dibujarPieAyuda("Anda a ESCANEAR y volve aca");
+        tft.print(tr(TXT_NECESITA_ESCANEO));
+        dibujarPieAyuda(tr(TXT_PIE_ANDA_ESCANEAR));
         return;
     }
 
@@ -494,11 +507,11 @@ void dibujarPantallaCanales() {
                 chMasUsado = ch;
             }
         }
-        char pie[40];
-        snprintf(pie, sizeof(pie), "Historico (%d escaneos): CH%d el mas usado", escaneosAcumulados, chMasUsado);
+        char pie[48];
+        snprintf(pie, sizeof(pie), tr(TXT_CANALES_HISTORICO_FORMAT), escaneosAcumulados, chMasUsado);
         dibujarPieAyuda(pie);
     } else {
-        dibujarPieAyuda("Barra mas corta = canal menos saturado");
+        dibujarPieAyuda(tr(TXT_CANALES_PIE));
     }
 }
 
@@ -525,7 +538,8 @@ const int ALTO_CONTROLES_ANALIZADOR = 34;
 // bloque de cambioPantalla en loop(), main.cpp.
 void dibujarPantallaAnalizador() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("ANALIZADOR", COLOR_CAT_YELLOW, ICONO_CANALES);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_ANALIZADOR_NOMBRE).
+    dibujarTituloSeccion(tr(TXT_HERR_ANALIZADOR_NOMBRE), COLOR_CAT_YELLOW, ICONO_CANALES);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     uint16_t histBeacons[ANALIZADOR_MUESTRAS];
@@ -648,7 +662,7 @@ void dibujarPantallaAnalizador() {
         dibujarTextoEspaciado(xMedio, yBtn + (altoBtn / 2) - 3, medio, COLOR_TEXT_DIM, COLOR_BG, 1);
     }
 
-    dibujarPieAyuda("Toca - o + para ajustar Channel / escala Y / X");
+    dibujarPieAyuda(tr(TXT_ANALIZADOR_PIE));
 }
 
 // Compara las redes del ULTIMO escaneo entre si y marca que SSID
@@ -657,14 +671,15 @@ void dibujarPantallaAnalizador() {
 // (una red mesh real da el mismo patron).
 void dibujarPantallaDuplicados() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("DUPLICADO", COLOR_CAT_RED, ICONO_DUPLICADO);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_DUPLICADO_NOMBRE).
+    dibujarTituloSeccion(tr(TXT_HERR_DUPLICADO_NOMBRE), COLOR_CAT_RED, ICONO_DUPLICADO);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     if (numRedes == 0) {
         tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
         tft.setCursor(10, top + 10);
-        tft.print("Hace falta un escaneo primero");
-        dibujarPieAyuda("Anda a ESCANEAR y volve aca");
+        tft.print(tr(TXT_NECESITA_ESCANEO));
+        dibujarPieAyuda(tr(TXT_PIE_ANDA_ESCANEAR));
         return;
     }
 
@@ -687,8 +702,8 @@ void dibujarPantallaDuplicados() {
     if (totalSospechosas == 0) {
         tft.setTextColor(COLOR_TEXT, COLOR_BG);
         tft.setCursor(10, top + 10);
-        tft.print("Ningun SSID repetido en este escaneo");
-        dibujarPieAyuda("Puede cambiar en el proximo escaneo");
+        tft.print(tr(TXT_DUPLICADO_NINGUNO));
+        dibujarPieAyuda(tr(TXT_DUPLICADO_PIE_NINGUNO));
         return;
     }
 
@@ -717,11 +732,11 @@ void dibujarPantallaDuplicados() {
     }
 
     if (totalSospechosas > mostradas) {
-        char masTexto[36];
-        snprintf(masTexto, sizeof(masTexto), "+ %d mas con el mismo problema", totalSospechosas - mostradas);
+        char masTexto[48];
+        snprintf(masTexto, sizeof(masTexto), tr(TXT_DUPLICADO_MAS_FORMAT), totalSospechosas - mostradas);
         dibujarPieAyuda(masTexto);
     } else {
-        dibujarPieAyuda("Puede ser mesh real - no es 100% certeza");
+        dibujarPieAyuda(tr(TXT_DUPLICADO_PIE_MESH));
     }
 }
 
@@ -731,13 +746,14 @@ void dibujarPantallaDuplicados() {
 // sesion.
 void dibujarPantallaGame() {
     tft.fillRect(0, CONTENT_TOP, TFT_PANEL_WIDTH, alturaListado(), COLOR_BG);
-    dibujarTituloSeccion("GAME", COLOR_CAT_WHITE, ICONO_ESPADA);
+    // Reusa la clave de nombre de la herramienta (TXT_HERR_GAME_NOMBRE).
+    dibujarTituloSeccion(tr(TXT_HERR_GAME_NOMBRE), COLOR_CAT_WHITE, ICONO_ESPADA);
     int top = CONTENT_TOP + ALTO_TITULO_SECCION;
 
     tft.setTextColor(COLOR_TEXT_DIM, COLOR_BG);
     tft.setCursor(10, top + 10);
-    tft.print("Proximamente...");
-    dibujarPieAyuda("Todavia no hay nada aca");
+    tft.print(tr(TXT_GAME_PROXIMAMENTE));
+    dibujarPieAyuda(tr(TXT_GAME_PIE));
 }
 
 // Vuelca a /resumen.txt en la SD un reporte legible de TODA la sesion.
