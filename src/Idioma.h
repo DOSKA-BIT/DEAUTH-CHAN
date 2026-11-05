@@ -233,6 +233,16 @@ enum TextoId {
     TXT_GAME_PROXIMAMENTE,
     TXT_GAME_PIE,
 
+    // Mascota.cpp - Fase 2 (ultima pantalla pendiente)
+    TXT_MASCOTA_REDES,
+    TXT_MASCOTA_NUEVAS,
+    TXT_MASCOTA_WII,
+    TXT_ESTADO_IDLE,
+    TXT_ESTADO_SCANNING,
+    TXT_ESTADO_HAPPY,
+    TXT_ESTADO_CURIOSA,
+    TXT_ESTADO_SLEEP,
+
     // Pantalla IDIOMA (ScreenAjustes.cpp) - los nombres de cada idioma
     // ("ESPANOL"/"ENGLISH") NO son claves de esta lista a proposito:
     // un selector de idioma siempre muestra cada opcion en su propio

@@ -105,11 +105,11 @@ void Mascota::dibujar(bool limpiarTodo) {
 
 const char* Mascota::nombreEstado() const {
     switch (estadoActual) {
-        case ESTADO_IDLE:     return "DE PASEO";
-        case ESTADO_SCANNING: return "BUSCANDO";
-        case ESTADO_HAPPY:    return "CONTENTA";
-        case ESTADO_CURIOSA:  return "QUE ES ESO?";
-        case ESTADO_SLEEP:    return "DURMIENDO";
+        case ESTADO_IDLE:     return tr(TXT_ESTADO_IDLE);
+        case ESTADO_SCANNING: return tr(TXT_ESTADO_SCANNING);
+        case ESTADO_HAPPY:    return tr(TXT_ESTADO_HAPPY);
+        case ESTADO_CURIOSA:  return tr(TXT_ESTADO_CURIOSA);
+        case ESTADO_SLEEP:    return tr(TXT_ESTADO_SLEEP);
         default:              return "";
     }
 }
@@ -136,12 +136,12 @@ void Mascota::dibujarEncabezado() {
     display->fillRect(0, 0, TFT_PANEL_WIDTH, 32, COLOR_BG);
     dibujarLineaPunteada(0, 32, TFT_PANEL_WIDTH, COLOR_ACCENT_DIM);
 
-    dibujarTextoEspaciado(6, 5, "REDES", COLOR_TEXT_DIM, COLOR_BG, 1);
+    dibujarTextoEspaciado(6, 5, tr(TXT_MASCOTA_REDES), COLOR_TEXT_DIM, COLOR_BG, 1);
     char bufRedes[6];
     snprintf(bufRedes, sizeof(bufRedes), "%d", redesEncontradas);
     dibujarTextoEspaciado(6, 16, bufRedes, COLOR_TEXT, COLOR_BG, 1);
 
-    dibujarTextoEspaciado(60, 5, "NUEVAS", COLOR_TEXT_DIM, COLOR_BG, 1);
+    dibujarTextoEspaciado(60, 5, tr(TXT_MASCOTA_NUEVAS), COLOR_TEXT_DIM, COLOR_BG, 1);
     char bufNuevas[6];
     snprintf(bufNuevas, sizeof(bufNuevas), "%d", redesNuevas);
     dibujarTextoEspaciado(60, 16, bufNuevas, COLOR_WARN, COLOR_BG, 1);
@@ -227,7 +227,7 @@ void Mascota::dibujarCara() {
         display->setTextColor(COLOR_ACCENT, COLOR_BG);
         display->setTextFont(2);
         display->setCursor(x + CARA_ANCHO + 10, y + CARA_ALTO / 2 - 10);
-        display->print("WII!");
+        display->print(tr(TXT_MASCOTA_WII));
         display->setTextFont(1);
     } else if (estadoActual == ESTADO_CURIOSA) {
         // Antes esta cara era la de "ataque" (enojada, con rayos). Ahora

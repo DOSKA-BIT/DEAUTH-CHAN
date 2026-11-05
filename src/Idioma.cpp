@@ -169,6 +169,15 @@ static const char* ES[CANTIDAD_TEXTOS] = {
     "Proximamente...",                             // TXT_GAME_PROXIMAMENTE
     "Todavia no hay nada aca",                     // TXT_GAME_PIE
 
+    "REDES",                                       // TXT_MASCOTA_REDES
+    "NUEVAS",                                      // TXT_MASCOTA_NUEVAS
+    "WII!",                                        // TXT_MASCOTA_WII
+    "DE PASEO",                                    // TXT_ESTADO_IDLE
+    "BUSCANDO",                                    // TXT_ESTADO_SCANNING
+    "CONTENTA",                                    // TXT_ESTADO_HAPPY
+    "QUE ES ESO?",                                 // TXT_ESTADO_CURIOSA
+    "DURMIENDO",                                   // TXT_ESTADO_SLEEP
+
     "IDIOMA",                                      // TXT_IDIOMA_TITULO
     "Toca un idioma para activarlo",               // TXT_IDIOMA_PIE
 };
@@ -338,6 +347,15 @@ static const char* EN[CANTIDAD_TEXTOS] = {
 
     "Coming soon...",                              // TXT_GAME_PROXIMAMENTE
     "Nothing here yet",                            // TXT_GAME_PIE
+
+    "NETWORKS",                                    // TXT_MASCOTA_REDES
+    "NEW",                                         // TXT_MASCOTA_NUEVAS
+    "YAY!",                                        // TXT_MASCOTA_WII
+    "OUT FOR A WALK",                              // TXT_ESTADO_IDLE
+    "SCANNING",                                    // TXT_ESTADO_SCANNING
+    "HAPPY",                                       // TXT_ESTADO_HAPPY
+    "WHAT'S THAT?",                                // TXT_ESTADO_CURIOSA
+    "SLEEPING",                                    // TXT_ESTADO_SLEEP
 
     "LANGUAGE",                                    // TXT_IDIOMA_TITULO
     "Tap a language to switch to it",              // TXT_IDIOMA_PIE
