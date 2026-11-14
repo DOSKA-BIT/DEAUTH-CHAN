@@ -168,10 +168,14 @@ Categoria categorias[CANTIDAD_CATEGORIAS] = {
 
 // Una fila por herramienta en la pantalla de Herramientas: nombre,
 // descripcion corta, a que categoria pertenece (para el submenu de
-// arriba), a que pantalla lleva al tocarla, y su color + icono de
-// categoria. Agregar una herramienta nueva es agregar una linea aca
-// (y su pantalla propia en el Screen*.cpp de su categoria, y su icono
-// en Iconos.h) - no hay que tocar la barra de botones para nada.
+// arriba), a que pantalla lleva al tocarla, su color + icono de
+// categoria, y (desde la modularizacion) sus propios punteros a
+// funcion de dibujado/toque/refresco (ver el comentario largo junto a
+// "struct Herramienta" en Globals.h). Agregar una herramienta nueva
+// de aca en mas es: escribir su dibujarPantallaX()/manejarToqueX() en
+// el Screen*.cpp de su categoria, declarar los prototipos en
+// Globals.h, sumar su icono en Iconos.h, su enum en MenuScreen - y
+// UNA fila aca con sus punteros. Nada de switches en main.cpp.
 //
 // Nombres en mayuscula a proposito: es parte de la estetica de lista
 // de terminal que reemplaza a las tarjetas redondeadas de antes. El
@@ -179,44 +183,91 @@ Categoria categorias[CANTIDAD_CATEGORIAS] = {
 // amarillo = stats/destacado, violeta = analisis/ubicacion, azul =
 // configuracion (neutro), blanco = listas simples/informativas, rojo
 // = alertas.
+//
+// manejarToqueWifi() sigue siendo UNA sola funcion compartida por las
+// 5 pantallas de WIFI que tienen toque (necesita saber cual de las 5
+// es, por eso su firma lleva un MenuScreen) - en vez de duplicarla,
+// cada fila de esas usa una lambda sin captura chiquita que le pasa
+// su propia pantalla. Una lambda sin captura convierte implicitamente
+// a puntero a funcion comun, asi que esto compila igual que si fuera
+// una funcion aparte.
+//
+// Los campos "y"/"h" (layout) y "ultimoRefresco" (timestamp del
+// refresco de fondo) se omiten a proposito en cada fila: en una
+// inicializacion de struct en C++, todo campo que no se nombra queda
+// en 0/nullptr solo, que es justo el valor inicial que necesitan.
 Herramienta herramientas[] = {
-    {TXT_HERR_ESCANEAR_NOMBRE,   TXT_HERR_ESCANEAR_DESC,   CAT_WIFI,       SCREEN_SCAN,      COLOR_CAT_CYAN,   ICONO_ESCANEAR,  0, 0},
-    {TXT_HERR_STATS_NOMBRE,      TXT_HERR_STATS_DESC,      CAT_WIFI,       SCREEN_STATS,     COLOR_CAT_YELLOW, ICONO_STATS,     0, 0},
-    {TXT_HERR_CONOCIDAS_NOMBRE,  TXT_HERR_CONOCIDAS_DESC,  CAT_WIFI,       SCREEN_CONOCIDAS, COLOR_CAT_WHITE,  ICONO_CONOCIDAS, 0, 0},
-    {TXT_HERR_MONITOR_NOMBRE,    TXT_HERR_MONITOR_DESC,    CAT_WIFI,       SCREEN_MONITOR,   COLOR_CAT_RED,    ICONO_MONITOR,   0, 0},
-    {TXT_HERR_EVENTOS_NOMBRE,    TXT_HERR_EVENTOS_DESC,    CAT_WIFI,       SCREEN_EVENTOS,   COLOR_CAT_BLUE,   ICONO_EVENTOS,   0, 0},
-    {TXT_HERR_CANALES_NOMBRE,    TXT_HERR_CANALES_DESC,    CAT_WIFI,       SCREEN_CANALES,   COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
-    {TXT_HERR_ANALIZADOR_NOMBRE, TXT_HERR_ANALIZADOR_DESC, CAT_WIFI,       SCREEN_ANALIZADOR,COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0},
-    {TXT_HERR_DUPLICADO_NOMBRE,  TXT_HERR_DUPLICADO_DESC,  CAT_WIFI,       SCREEN_DUPLICADOS,COLOR_CAT_RED,    ICONO_DUPLICADO, 0, 0},
+    {TXT_HERR_ESCANEAR_NOMBRE,   TXT_HERR_ESCANEAR_DESC,   CAT_WIFI,       SCREEN_SCAN,       COLOR_CAT_CYAN,   ICONO_ESCANEAR,  0, 0,
+        dibujarListaRedes,       [](int x, int y){ manejarToqueWifi(SCREEN_SCAN, x, y); },       nullptr, 0},
+    {TXT_HERR_STATS_NOMBRE,      TXT_HERR_STATS_DESC,      CAT_WIFI,       SCREEN_STATS,      COLOR_CAT_YELLOW, ICONO_STATS,     0, 0,
+        dibujarPantallaStats,    nullptr,                                                       nullptr, 0},
+    {TXT_HERR_CONOCIDAS_NOMBRE,  TXT_HERR_CONOCIDAS_DESC,  CAT_WIFI,       SCREEN_CONOCIDAS,  COLOR_CAT_WHITE,  ICONO_CONOCIDAS, 0, 0,
+        dibujarPantallaConocidas,[](int x, int y){ manejarToqueWifi(SCREEN_CONOCIDAS, x, y); }, nullptr, 0},
+    {TXT_HERR_MONITOR_NOMBRE,    TXT_HERR_MONITOR_DESC,    CAT_WIFI,       SCREEN_MONITOR,    COLOR_CAT_RED,    ICONO_MONITOR,   0, 0,
+        dibujarPantallaMonitor,  [](int x, int y){ manejarToqueWifi(SCREEN_MONITOR, x, y); },   dibujarPantallaMonitor, 1000},
+    {TXT_HERR_EVENTOS_NOMBRE,    TXT_HERR_EVENTOS_DESC,    CAT_WIFI,       SCREEN_EVENTOS,    COLOR_CAT_BLUE,   ICONO_EVENTOS,   0, 0,
+        dibujarPantallaEventos,  [](int x, int y){ manejarToqueWifi(SCREEN_EVENTOS, x, y); },   nullptr, 0},
+    {TXT_HERR_CANALES_NOMBRE,    TXT_HERR_CANALES_DESC,    CAT_WIFI,       SCREEN_CANALES,    COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0,
+        dibujarPantallaCanales,  nullptr,                                                       nullptr, 0},
+    {TXT_HERR_ANALIZADOR_NOMBRE, TXT_HERR_ANALIZADOR_DESC, CAT_WIFI,       SCREEN_ANALIZADOR, COLOR_CAT_YELLOW, ICONO_CANALES,   0, 0,
+        dibujarPantallaAnalizador,[](int x, int y){ manejarToqueWifi(SCREEN_ANALIZADOR, x, y); }, dibujarPantallaAnalizador, ANALIZADOR_DWELL_MS},
+    {TXT_HERR_DUPLICADO_NOMBRE,  TXT_HERR_DUPLICADO_DESC,  CAT_WIFI,       SCREEN_DUPLICADOS, COLOR_CAT_RED,    ICONO_DUPLICADO, 0, 0,
+        dibujarPantallaDuplicados,nullptr,                                                      nullptr, 0},
     // Vacio a proposito (pedido explicito del usuario): sin logica
     // adentro, nada mas el boton, el icono y una pantalla en blanco -
     // ver dibujarPantallaGame() en ScreenWifi.cpp.
-    {TXT_HERR_GAME_NOMBRE,       TXT_HERR_GAME_DESC,       CAT_WIFI,       SCREEN_GAME,      COLOR_CAT_WHITE,  ICONO_ESPADA,    0, 0},
-    {TXT_HERR_WARDRIVE_NOMBRE,   TXT_HERR_WARDRIVE_DESC,   CAT_WARDRIVING, SCREEN_WARDRIVE,  COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0},
-    {TXT_HERR_RADAR_NOMBRE,      TXT_HERR_RADAR_DESC,      CAT_RADAR,      SCREEN_RADAR,     COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0},
+    {TXT_HERR_GAME_NOMBRE,       TXT_HERR_GAME_DESC,       CAT_WIFI,       SCREEN_GAME,       COLOR_CAT_WHITE,  ICONO_ESPADA,    0, 0,
+        dibujarPantallaGame,     nullptr,                                                       nullptr, 0},
+    {TXT_HERR_WARDRIVE_NOMBRE,   TXT_HERR_WARDRIVE_DESC,   CAT_WARDRIVING, SCREEN_WARDRIVE,   COLOR_CAT_VIOLET, ICONO_WARDRIVE,  0, 0,
+        dibujarPantallaWardrive, manejarToqueWardriving,                                        nullptr, 0},
+    {TXT_HERR_RADAR_NOMBRE,      TXT_HERR_RADAR_DESC,      CAT_RADAR,      SCREEN_RADAR,      COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0,
+        dibujarPantallaRadar,    nullptr,                                                       dibujarPantallaRadar, RADAR_REFRESCO_MS},
     // Segunda herramienta de RADAR: rastreador de un dispositivo BLE
     // puntual por senial (ver dibujarPantallaRastreador() en
     // ScreenRadar.cpp). Reusa el icono de RADAR a proposito (mismo
     // criterio que ANALIZADOR/CANALES e IDIOMA/CONFIG) en vez de
     // dibujar uno nuevo para una pantalla de la misma categoria.
-    {TXT_HERR_RASTREADOR_NOMBRE, TXT_HERR_RASTREADOR_DESC, CAT_RADAR,      SCREEN_RASTREADOR,COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0},
-    {TXT_HERR_CONFIG_NOMBRE,     TXT_HERR_CONFIG_DESC,     CAT_AJUSTES,    SCREEN_CONFIG,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
+    {TXT_HERR_RASTREADOR_NOMBRE, TXT_HERR_RASTREADOR_DESC, CAT_RADAR,      SCREEN_RASTREADOR, COLOR_CAT_GREEN,  ICONO_RADAR,     0, 0,
+        dibujarPantallaRastreador, manejarToqueRastreador,                                      dibujarPantallaRastreador, RADAR_REFRESCO_MS},
+    {TXT_HERR_CONFIG_NOMBRE,     TXT_HERR_CONFIG_DESC,     CAT_AJUSTES,    SCREEN_CONFIG,     COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0,
+        dibujarPantallaConfig,   manejarToqueConfig,
+        // Config refresca DOS cosas por separado cada 1s (heap/uptime y
+        // el estado de "Borrar redes guardadas") - antes eran dos
+        // llamadas sueltas en el mismo bloque de loop(); esta lambda
+        // las junta para que sigan siendo "una sola cosa" desde la
+        // tabla, sin inventar una funcion nueva en ScreenAjustes.cpp.
+        [](){ actualizarDiagnosticoHardware(); actualizarEstadoBorrado(); }, 1000},
     // Pedido del usuario: el selector de idioma vive al lado de CONFIG,
     // dentro de la misma categoria AJUSTES (ver dibujarPantallaIdioma()/
     // manejarToqueIdioma() en ScreenAjustes.cpp). Reusa el icono de
     // CONFIG a proposito (mismo criterio pragmatico que ANALIZADOR
     // reusando el icono de CANALES) en vez de dibujar uno nuevo.
-    {TXT_HERR_IDIOMA_NOMBRE,     TXT_HERR_IDIOMA_DESC,     CAT_AJUSTES,    SCREEN_IDIOMA,    COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0},
+    {TXT_HERR_IDIOMA_NOMBRE,     TXT_HERR_IDIOMA_DESC,     CAT_AJUSTES,    SCREEN_IDIOMA,     COLOR_CAT_BLUE,   ICONO_CONFIG,    0, 0,
+        dibujarPantallaIdioma,   manejarToqueIdioma,                                            nullptr, 0},
 };
 const int CANTIDAD_HERRAMIENTAS = sizeof(herramientas) / sizeof(herramientas[0]);
+
+// Busca la fila de herramientas[] activa ahora mismo (segun
+// pantallaActual) - ver el comentario largo junto a "struct
+// Herramienta" en Globals.h. Devuelve -1 para Mascota/categorias/
+// lista-de-herramientas, que no son filas de esta tabla.
+int indiceHerramienta(MenuScreen pantalla) {
+    for (int i = 0; i < CANTIDAD_HERRAMIENTAS; i++) {
+        if (herramientas[i].destino == pantalla) return i;
+    }
+    return -1;
+}
 
 // Dispatcher de toque: primero resuelve los dos botones fijos de
 // abajo (siempre activos, en cualquier pantalla), y despues deriva a
 // la funcion de toque que corresponde segun la pantalla activa. Las
-// pantallas sin nada tocable (STATS, CANALES, DUPLICADOS, RADAR,
-// GAME) caen en el "default" y no hacen nada, igual que antes. CONFIG
-// dejo de estar en ese grupo: ahora tiene sus propios controles
-// (brillo, autosleep, borrar redes guardadas - ver ScreenAjustes.cpp).
+// dos pantallas de navegacion (lista de categorias / lista de
+// herramientas de una categoria) siguen resolviendose a mano, porque
+// no son una fila de herramientas[]; CUALQUIER otra pantalla busca su
+// fila en la tabla (ver indiceHerramienta() mas arriba) y llama a su
+// puntero manejarToque - si esa fila tiene nullptr ahi (STATS,
+// CANALES, DUPLICADOS, RADAR, GAME: pantallas sin nada tocable) no
+// pasa nada, igual que antes.
 void manejarToque(int x, int y) {
     for (int i = 0; i < 2; i++) {
         if (x >= menuBotones[i].x && x <= menuBotones[i].x + menuBotones[i].w &&
@@ -253,27 +304,13 @@ void manejarToque(int x, int y) {
         case SCREEN_TOOLS_SUB:
             manejarToqueHerramientasSub(y);
             break;
-        case SCREEN_SCAN:
-        case SCREEN_CONOCIDAS:
-        case SCREEN_EVENTOS:
-        case SCREEN_MONITOR:
-        case SCREEN_ANALIZADOR:
-            manejarToqueWifi(pantallaActual, x, y);
+        default: {
+            int idx = indiceHerramienta(pantallaActual);
+            if (idx >= 0 && herramientas[idx].manejarToque) {
+                herramientas[idx].manejarToque(x, y);
+            }
             break;
-        case SCREEN_WARDRIVE:
-            manejarToqueWardriving(x, y);
-            break;
-        case SCREEN_CONFIG:
-            manejarToqueConfig(x, y);
-            break;
-        case SCREEN_RASTREADOR:
-            manejarToqueRastreador(x, y);
-            break;
-        case SCREEN_IDIOMA:
-            manejarToqueIdioma(x, y);
-            break;
-        default:
-            break;
+        }
     }
 }
 
@@ -581,137 +618,40 @@ void loop() {
                 case SCREEN_TOOLS_SUB:
                     dibujarPantallaHerramientasSub();
                     break;
-                case SCREEN_SCAN:
-                    dibujarListaRedes();
+                default: {
+                    int idx = indiceHerramienta(pantallaActual);
+                    if (idx >= 0) herramientas[idx].dibujar();
                     break;
-                case SCREEN_STATS:
-                    dibujarPantallaStats();
-                    break;
-                case SCREEN_WARDRIVE:
-                    dibujarPantallaWardrive();
-                    break;
-                case SCREEN_CONFIG:
-                    dibujarPantallaConfig();
-                    break;
-                case SCREEN_CONOCIDAS:
-                    dibujarPantallaConocidas();
-                    break;
-                case SCREEN_EVENTOS:
-                    dibujarPantallaEventos();
-                    break;
-                case SCREEN_MONITOR:
-                    dibujarPantallaMonitor();
-                    break;
-                case SCREEN_CANALES:
-                    dibujarPantallaCanales();
-                    break;
-                case SCREEN_ANALIZADOR:
-                    dibujarPantallaAnalizador();
-                    break;
-                case SCREEN_DUPLICADOS:
-                    dibujarPantallaDuplicados();
-                    break;
-                case SCREEN_RADAR:
-                    dibujarPantallaRadar();
-                    break;
-                case SCREEN_RASTREADOR:
-                    dibujarPantallaRastreador();
-                    break;
-                case SCREEN_GAME:
-                    dibujarPantallaGame();
-                    break;
-                case SCREEN_IDIOMA:
-                    dibujarPantallaIdioma();
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        // Config muestra heap/uptime en vivo: se refresca solo ese
-        // bloque de numeros cada 1s, sin pasar por contenidoSucio (que
-        // volveria a dibujar todo el texto fijo de arriba) y sin tocar
-        // la SD para nada - por eso es una funcion aparte y no un
-        // vuelta a dibujarPantallaConfig() completa.
-        if (pantallaActual == SCREEN_CONFIG) {
-            static unsigned long ultimoRefrescoConfig = 0;
-            unsigned long ahoraConfig = millis();
-            if (cambioPantalla || ahoraConfig - ultimoRefrescoConfig >= 1000) {
-                ultimoRefrescoConfig = ahoraConfig;
-                if (!cambioPantalla) {
-                    // Si acabamos de entrar a la pantalla ya se pinto
-                    // completa arriba (contenidoSucio); aca solo evito
-                    // un segundo redibujado inmediato del mismo cuadro.
-                    actualizarDiagnosticoHardware();
-                    // Mismo refresco de 1s: si "Borrar redes guardadas"
-                    // quedo armado o mostrando "listo" y se vencio el
-                    // tiempo, lo vuelve a su estado normal.
-                    actualizarEstadoBorrado();
                 }
             }
         }
 
-        // Igual que en Config: el Monitor de deauth/disassoc se
-        // repinta solo cada 1s mientras estamos parados en el, para
-        // que una rafaga se note sin tener que salir y volver a
-        // entrar a la pantalla. Esta pantalla no toca la SD para
-        // nada (los contadores viven en RAM, dentro de WiFiScanner),
-        // asi que ademas es mucho mas liviano que el refresco de
-        // Config.
-        if (pantallaActual == SCREEN_MONITOR) {
-            static unsigned long ultimoRefrescoMonitor = 0;
-            unsigned long ahoraMonitor = millis();
-            if (cambioPantalla || ahoraMonitor - ultimoRefrescoMonitor >= 1000) {
-                ultimoRefrescoMonitor = ahoraMonitor;
-                if (!cambioPantalla) {
-                    dibujarPantallaMonitor();
-                }
-            }
-        }
-
-        // Mismo patron que Monitor: RADAR tambien vive de datos que se
-        // acumulan solos de fondo (el callback de BLE), asi que sin
-        // esto la lista se quedaria congelada en lo que habia apenas
-        // entraste a la pantalla hasta que la tocaras o salieras y
-        // volvieras a entrar.
-        if (pantallaActual == SCREEN_RADAR) {
-            static unsigned long ultimoRefrescoRadar = 0;
-            unsigned long ahoraRadar = millis();
-            if (cambioPantalla || ahoraRadar - ultimoRefrescoRadar >= RADAR_REFRESCO_MS) {
-                ultimoRefrescoRadar = ahoraRadar;
-                if (!cambioPantalla) {
-                    dibujarPantallaRadar();
-                }
-            }
-        }
-
-        // Mismo patron que RADAR: RASTREADOR tambien vive de datos que
-        // se acumulan solos de fondo (el mismo callback de BLE), tanto
-        // en su lista de seleccion como en el medidor de senial en
-        // vivo una vez que elegiste un dispositivo.
-        if (pantallaActual == SCREEN_RASTREADOR) {
-            static unsigned long ultimoRefrescoRastreador = 0;
-            unsigned long ahoraRastreador = millis();
-            if (cambioPantalla || ahoraRastreador - ultimoRefrescoRastreador >= RADAR_REFRESCO_MS) {
-                ultimoRefrescoRastreador = ahoraRastreador;
-                if (!cambioPantalla) {
-                    dibujarPantallaRastreador();
-                }
-            }
-        }
-
-        // Mismo patron que RADAR/MONITOR: el Analizador vive de datos
-        // que se acumulan solos de fondo (el callback de WiFi contando
-        // trafico por canal) mas la rueda de canales que gira sola, asi
-        // que sin esto la pantalla se quedaria congelada en la primera
-        // foto hasta que la tocaras.
-        if (pantallaActual == SCREEN_ANALIZADOR) {
-            static unsigned long ultimoRefrescoAnalizador = 0;
-            unsigned long ahoraAnalizador = millis();
-            if (cambioPantalla || ahoraAnalizador - ultimoRefrescoAnalizador >= ANALIZADOR_DWELL_MS) {
-                ultimoRefrescoAnalizador = ahoraAnalizador;
-                if (!cambioPantalla) {
-                    dibujarPantallaAnalizador();
+        // Refresco periodico de fondo: antes esto eran 5 bloques
+        // casi identicos copiados y pegados a mano (uno por Config,
+        // Monitor, Radar, Rastreador y Analizador), cada uno con su
+        // propio "static unsigned long ultimoRefrescoX" y su propio
+        // intervalo - agregar una herramienta nueva que necesitara
+        // refrescarse sola de fondo significaba copiar uno de estos
+        // bloques entero. Ahora es un solo bloque generico: busca la
+        // fila activa en herramientas[] y, si esa fila declaro un
+        // "refrescar" (ver el array en este mismo archivo), respeta
+        // su propio intervalo guardado en "ultimoRefresco" (campo de
+        // la fila, no un static por pantalla). Las herramientas sin
+        // refrescar == nullptr (la mayoria) no entran a este bloque
+        // para nada.
+        {
+            int idx = indiceHerramienta(pantallaActual);
+            if (idx >= 0 && herramientas[idx].refrescar) {
+                unsigned long ahoraRefresco = millis();
+                if (cambioPantalla || ahoraRefresco - herramientas[idx].ultimoRefresco >= herramientas[idx].intervaloRefrescoMs) {
+                    herramientas[idx].ultimoRefresco = ahoraRefresco;
+                    if (!cambioPantalla) {
+                        // Si acabamos de entrar a la pantalla ya se
+                        // pinto completa arriba (contenidoSucio); aca
+                        // solo evito un segundo redibujado inmediato
+                        // del mismo cuadro.
+                        herramientas[idx].refrescar();
+                    }
                 }
             }
         }

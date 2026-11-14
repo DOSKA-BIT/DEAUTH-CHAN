@@ -146,6 +146,21 @@ struct Categoria {
 extern Categoria categorias[CANTIDAD_CATEGORIAS];
 
 // ---- Herramientas (una fila por pantalla dentro de una categoria) ----
+//
+// Modularizacion (pedido del usuario: agregar una herramienta nueva el
+// dia de mañana no deberia significar salir a tocar un switch en
+// main.cpp por cada cosa - dibujado, toque y refresco de fondo). Antes
+// cada herramienta nueva necesitaba: una fila aca, UN case en el
+// switch de dibujado de loop(), UN case en el switch de toque de
+// manejarToque(), y (si parpadeaba sola) un bloque de refresco a mano
+// copiado y pegado de otra herramienta parecida. Ahora cada fila trae
+// sus propios punteros a funcion y los switches de main.cpp
+// desaparecen: loop() y manejarToque() resuelven QUE pantalla esta
+// activa buscandola en esta tabla (ver indiceHerramienta() mas abajo)
+// y llaman al puntero que corresponda. Las unicas pantallas que NO
+// estan aca son las de navegacion pura (Mascota, lista de categorias,
+// lista de herramientas de una categoria) - esas siguen con su propio
+// case a mano porque no son "una herramienta", son el menu en si.
 struct Herramienta {
     TextoId nombre;        // clave de traduccion, ver el comentario de Categoria arriba
     TextoId descripcion;   // idem
@@ -154,9 +169,25 @@ struct Herramienta {
     uint16_t color;        // color de categoria (icono + texto)
     const uint8_t* icono;  // bitmap 16x16 de Iconos.h
     int y, h; // se calculan en layoutHerramientasDeCategoria()
+
+    // ---- Funciones propias de esta herramienta (ver el comentario
+    // largo de arriba). Los tres punteros se asignan en el array
+    // herramientas[] de main.cpp; "y", "h" arriba y "ultimoRefresco"
+    // aca abajo son los unicos campos que de verdad mutan en runtime.
+    void (*dibujar)();                  // obligatorio: como se pinta esta pantalla cuando esta activa
+    void (*manejarToque)(int x, int y); // nullptr = pantalla sin nada tocable (STATS, CANALES, RADAR, etc)
+    void (*refrescar)();                // nullptr = no se redibuja sola de fondo (la mayoria de las herramientas)
+    unsigned long intervaloRefrescoMs;  // solo se usa si refrescar != nullptr
+    unsigned long ultimoRefresco;       // uso interno de loop() - se omite en cada fila, arranca en 0 siempre
 };
 extern Herramienta herramientas[];
 extern const int CANTIDAD_HERRAMIENTAS;
+// Busca, dentro de herramientas[], la fila cuyo "destino" es "pantalla".
+// Devuelve -1 para las pantallas que NO son una herramienta (Mascota,
+// lista de categorias, lista de herramientas de una categoria) - esas
+// tres no tienen fila en esta tabla, se resuelven a mano. Definida en
+// main.cpp, junto al array.
+int indiceHerramienta(MenuScreen pantalla);
 
 // ---- Medidas de chrome compartido (titulo de seccion, pie de ayuda,
 // botones fijos de algunas pantallas) ----
