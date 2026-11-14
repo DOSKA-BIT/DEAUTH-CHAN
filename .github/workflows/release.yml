@@ -71,6 +71,15 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    # El GITHUB_TOKEN automatico de Actions viene de SOLO LECTURA por
+    # defecto en este repo - sin esto, action-gh-release tira
+    # "Resource not accessible by integration" apenas intenta tocar el
+    # Release (encontrarlo, generar las release notes, o subirle los
+    # binarios), aunque el Release ya exista. Con este permiso el
+    # token puede escribir en Releases de ESTE repo nomas, nada mas se
+    # habilita.
+    permissions:
+      contents: write
     steps:
       - name: Descargar todos los artifacts
         uses: actions/download-artifact@v4
